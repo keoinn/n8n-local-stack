@@ -1,0 +1,38 @@
+# -----------------------------------------------------------------------------
+# 可提交：README.md、compose*.yml、scripts/、.env.example、本檔
+# -----------------------------------------------------------------------------
+
+# 密鑰與本機設定（範本 .env.example 要進 git）
+.env
+.env.*
+!.env.example
+
+# 本機 bind mount（n8n 設定、Postgres 資料檔）；保留目錄佔位
+data/*
+!data/n8n/
+!data/postgres/
+data/n8n/*
+!data/n8n/.gitkeep
+data/postgres/*
+!data/postgres/.gitkeep
+
+# 場景 B 同步暫存（可能含加密 / 解密後的 Credentials）；保留目錄佔位
+exports/*
+!exports/.gitkeep
+
+# 憑證、金鑰、資料庫傾印
+*.pem
+*.key
+*.p12
+*.pfx
+*.sql
+*.dump
+credentials.json
+credentials-plain.json
+
+# 系統與編輯器雜訊
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/

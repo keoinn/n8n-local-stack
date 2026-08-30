@@ -1,0 +1,26 @@
+# 場景 C：本機 n8n 直連 Cloud Run 使用的 Supabase。
+# 用法：
+#   docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel up -d
+# 不要同時讓 Cloud Run 與本機 n8n 對同一顆庫寫入（排程 / webhook 會重複觸發）。
+
+services:
+  postgres:
+    profiles:
+      - do-not-start
+
+  n8n:
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+    environment:
+      DB_POSTGRESDB_HOST: ${CLOUD_DB_POSTGRESDB_HOST}
+      DB_POSTGRESDB_PORT: ${CLOUD_DB_POSTGRESDB_PORT:-5432}
+      DB_POSTGRESDB_DATABASE: ${CLOUD_DB_POSTGRESDB_DATABASE}
+      DB_POSTGRESDB_USER: ${CLOUD_DB_POSTGRESDB_USER}
+      DB_POSTGRESDB_PASSWORD: ${CLOUD_DB_POSTGRESDB_PASSWORD}
+      DB_POSTGRESDB_SCHEMA: ${CLOUD_DB_POSTGRESDB_SCHEMA:-public}
+      DB_POSTGRESDB_SSL_ENABLED: "true"
+      DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: "false"
+      DB_POSTGRESDB_CONNECTION_TIMEOUT: "30000"
+      DB_POSTGRESDB_POOL_SIZE: "5"
