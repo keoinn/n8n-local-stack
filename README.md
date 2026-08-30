@@ -135,7 +135,21 @@ http://localhost:5678/rest/oauth2-credential/callback
 
 建議保留 Cloud Run 那一筆，讓雲端與本機可以並存。存檔後回到 n8n，對該 Credential 解除綁定再重新 Connect。
 
-正式走 Google OAuth 請用 ngrok 的 HTTPS；`localhost` 只適合本機測試用戶端。
+開了 `--profile tunnel` 之後，憑證畫面的 OAuth Redirect URL 應是：
+
+```text
+https://<你的 ngrok 網域>/rest/oauth2-credential/callback
+```
+
+若仍顯示 `http://localhost:5678/...`，見[排解疑難](#oauth2-redirect-url-仍是-httplocalhost5678)。
+
+綁定時請用 ngrok 的 HTTPS 開編輯器再按 Connect，不要用 `http://localhost:5678`：
+
+```text
+https://<你的 ngrok 網域>
+```
+
+免費 ngrok 第一次開啟會有警告頁，先按 Visit Site。從 localhost 開編輯器時，Google 轉回 ngrok 網域不會帶上 `n8n-auth` cookie，畫面會變成 `Error: Unauthorized`。有填 `NGROK_DOMAIN` 時 compose 會設 `N8N_SKIP_AUTH_ON_OAUTH_CALLBACK=true`；若仍失敗，見[排解疑難](#oauth2-綁定出現-error-unauthorized)。
 
 ---
 
@@ -177,3 +191,52 @@ docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel do
 | `exports/` | 場景 B 同步暫存，預設同步完會刪 |
 
 `.env`、`data/`、`exports/` 已列入 `.gitignore`。不要把 encryption key 或資料庫密碼提交進 git。
+
+---
+
+## 排解疑難
+
+### `service "ngrok-env-check" didn't complete successfully: exit 1`
+
+開了 `--profile tunnel`，但 `.env` 的 `NGROK_AUTHTOKEN` 或 `NGROK_DOMAIN` 還沒填（空白，或還停在範本的 `YOUR_NGROK_*`）。compose 會先擋下來，不會掛 `n8n-local-ngrok-1`。
+
+看檢查服務寫了什麼：
+
+```bash
+docker compose --profile tunnel logs ngrok-env-check
+```
+
+常見提示是請填 Auth Token，以及網域只要主機名、不要加 `https://`。到 [ngrok](https://ngrok.com/) 取得後寫進 `.env`，再執行：
+
+```bash
+docker compose --profile tunnel up -d
+```
+
+只在本機編輯、不需要外網 webhook 時，不要加 `--profile tunnel`：
+
+```bash
+docker compose up -d postgres n8n
+```
+
+### OAuth2 Redirect URL 仍是 `http://localhost:5678`
+
+憑證畫面的 callback 來自 `N8N_EDITOR_BASE_URL`，不是「有沒有開 ngrok 容器」。`.env` 有填 `NGROK_DOMAIN` 時，compose 會把它設成 `https://<NGROK_DOMAIN>`。
+
+改完 `.env` 或 compose 後，必須重建 n8n 容器（只 restart 不會重讀環境變數）：
+
+```bash
+docker compose --profile tunnel up -d --force-recreate n8n
+```
+
+瀏覽器強制重新整理後再開憑證。若這個 credential 是在 localhost 時期建立的，解除綁定再 Connect，或建一筆新的。Google Cloud Console 也要有同一條 Redirect URI。
+
+### OAuth2 綁定出現 `Error: Unauthorized`
+
+Google 同意畫面過了，但彈窗寫 `Failed to connect. The window can be closed now.`。n8n 2.x 的 callback 預設要同一個網域的登入 cookie；從 `localhost` 開編輯器、callback 卻是 ngrok 網址時，cookie 送不到。
+
+請依序確認：
+
+1. `.env` 已填 `NGROK_DOMAIN`，且用 `docker compose --profile tunnel up -d --force-recreate n8n` 重建過（compose 會加上 `N8N_SKIP_AUTH_ON_OAUTH_CALLBACK=true`）。
+2. 用 `https://<NGROK_DOMAIN>` 打開編輯器並登入，不要用 `http://localhost:5678`。免費 ngrok 先過 Visit Site 警告頁。
+3. Google Cloud Console 的 Redirect URI 與憑證畫面顯示的完全一致（含 `https://`、網域、`/rest/oauth2-credential/callback`）。
+4. 再解除綁定後重新 Connect。

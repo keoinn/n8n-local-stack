@@ -9,7 +9,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      # 不要直接掛 data/postgres：裡面的 .gitkeep 會讓 initdb 以為目錄非空而失敗。
+      - ./data/postgres/pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -37,10 +38,14 @@ services:
       N8N_PORT: 5678
       N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
       N8N_HOST: ${N8N_HOST:-localhost}
-      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678}
+      # OAuth callback 看 N8N_EDITOR_BASE_URL；有 NGROK_DOMAIN 時必須蓋掉 .env 的 localhost。
+      N8N_EDITOR_BASE_URL: ${NGROK_DOMAIN:+https://${NGROK_DOMAIN}}
       N8N_WEBHOOK_URL: ${NGROK_DOMAIN:+https://${NGROK_DOMAIN}/}
+      WEBHOOK_URL: ${NGROK_DOMAIN:+https://${NGROK_DOMAIN}/}
       N8N_PROXY_HOPS: ${N8N_PROXY_HOPS:-1}
       N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      # n8n 2.x 預設 callback 要帶 n8n-auth cookie。從 localhost 開編輯器、Google 轉回 ngrok 時 cookie 送不到。
+      N8N_SKIP_AUTH_ON_OAUTH_CALLBACK: ${NGROK_DOMAIN:+true}
       N8N_ENDPOINT_HEALTH: health
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       N8N_RUNNERS_ENABLED: "true"
@@ -56,12 +61,41 @@ services:
       retries: 30
       start_period: 60s
 
+  ngrok-env-check:
+    image: busybox:1.37
+    profiles:
+      - tunnel
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+      NGROK_DOMAIN: ${NGROK_DOMAIN:-}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        fail=0
+        token=$$(printf '%s' "$$NGROK_AUTHTOKEN" | tr -d '[:space:]')
+        domain=$$(printf '%s' "$$NGROK_DOMAIN" | tr -d '[:space:]')
+        if [ -z "$$token" ] || [ "$$token" = "YOUR_NGROK_AUTHTOKEN" ]; then
+          echo "請在 .env 填寫 NGROK_AUTHTOKEN（ngrok 官網取得的 Auth Token）。" >&2
+          fail=1
+        fi
+        if [ -z "$$domain" ] || [ "$$domain" = "YOUR_NGROK_DOMAIN" ]; then
+          echo "請在 .env 填寫 NGROK_DOMAIN（只要網域，不要加 https://）。" >&2
+          fail=1
+        fi
+        if [ "$$fail" -ne 0 ]; then
+          echo "填完後再執行：docker compose --profile tunnel up -d" >&2
+          exit 1
+        fi
+
   ngrok:
     image: ngrok/ngrok:latest
     restart: unless-stopped
     profiles:
       - tunnel
     depends_on:
+      ngrok-env-check:
+        condition: service_completed_successfully
       n8n:
         condition: service_healthy
     command:
