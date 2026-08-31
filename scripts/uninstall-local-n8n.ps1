@@ -14,7 +14,7 @@ function Show-Usage {
     @'
 移除本專案的 container、network、Docker volume，以及 compose 用到的 image。
 預設一併清空 bind mount 資料夾 data/、exports/（本機 n8n / Postgres 資料）。
-不會刪除 .env。
+不會刪除 .env，也不會刪各目錄的 .gitkeep。
 
 用法：
   .\scripts\uninstall-local-n8n.ps1
@@ -74,18 +74,23 @@ if ($projectVolumes.Count -gt 0) {
     docker volume rm @projectVolumes
 }
 
-if (-not $KeepData) {
-    Write-Host '清空 bind mount：data/n8n、data/postgres、exports/ ...'
-    foreach ($rel in @('data\n8n', 'data\postgres', 'exports')) {
-        $path = Join-Path $Root $rel
-        if (Test-Path -LiteralPath $path) {
-            Remove-Item -LiteralPath $path -Recurse -Force
-        }
+function Clear-BindMountDir([string]$Rel) {
+    $path = Join-Path $Root $Rel
+    New-Item -ItemType Directory -Force -Path $path | Out-Null
+    Get-ChildItem -LiteralPath $path -Force | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
+        Remove-Item -LiteralPath $_.FullName -Recurse -Force
     }
-    New-Item -ItemType Directory -Force -Path `
-        (Join-Path $Root 'data\n8n'), `
-        (Join-Path $Root 'data\postgres'), `
-        (Join-Path $Root 'exports') | Out-Null
+    $gitkeep = Join-Path $path '.gitkeep'
+    if (-not (Test-Path -LiteralPath $gitkeep)) {
+        New-Item -ItemType File -Path $gitkeep | Out-Null
+    }
+}
+
+if (-not $KeepData) {
+    Write-Host '清空 bind mount：data/n8n、data/postgres、exports/（保留 .gitkeep）...'
+    foreach ($rel in @('data\n8n', 'data\postgres', 'exports')) {
+        Clear-BindMountDir $rel
+    }
 }
 
 Write-Host ''

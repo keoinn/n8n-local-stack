@@ -109,17 +109,13 @@ function Wait-ForService {
     )
     $elapsed = 0
     Write-Host "等待 $Service 就緒 ..."
-    $probe = @'
-    if command -v pg_isready >/dev/null 2>&1; then
-      pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-    else
-      wget -qO- http://127.0.0.1:5678/health >/dev/null
-    fi
-'@
     while ($true) {
-        docker compose exec -T $Service sh -c $probe 1>$null 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            return
+        $id = @(docker compose ps -q $Service 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ }) | Select-Object -First 1
+        if ($id) {
+            $health = docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $id 2>$null
+            if ($health -eq 'healthy') {
+                return
+            }
         }
         if ($elapsed -ge $Timeout) {
             Write-Err "$Service 在 $Timeout 秒內沒有變成 healthy。"

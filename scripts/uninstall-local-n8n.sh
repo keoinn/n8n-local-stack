@@ -11,7 +11,7 @@ usage() {
   cat <<'EOF'
 移除本專案的 container、network、Docker volume，以及 compose 用到的 image。
 預設一併清空 bind mount 資料夾 data/、exports/（本機 n8n / Postgres 資料）。
-不會刪除 .env。
+不會刪除 .env，也不會刪各目錄的 .gitkeep。
 
 用法：
   ./scripts/uninstall-local-n8n.sh
@@ -68,9 +68,16 @@ if [[ -n "${project_volumes}" ]]; then
 fi
 
 if [[ "${KEEP_DATA}" -eq 0 ]]; then
-  echo "清空 bind mount：data/n8n、data/postgres、exports/ ..."
-  rm -rf "${ROOT}/data/n8n" "${ROOT}/data/postgres" "${ROOT}/exports"
-  mkdir -p "${ROOT}/data/n8n" "${ROOT}/data/postgres" "${ROOT}/exports"
+  echo "清空 bind mount：data/n8n、data/postgres、exports/（保留 .gitkeep）..."
+  clear_bind_mount() {
+    local dir="$1"
+    mkdir -p "${dir}"
+    find "${dir}" -mindepth 1 -maxdepth 1 ! -name '.gitkeep' -exec rm -rf {} +
+    [[ -f "${dir}/.gitkeep" ]] || : > "${dir}/.gitkeep"
+  }
+  clear_bind_mount "${ROOT}/data/n8n"
+  clear_bind_mount "${ROOT}/data/postgres"
+  clear_bind_mount "${ROOT}/exports"
   chmod 777 "${ROOT}/data/n8n" "${ROOT}/exports" 2>/dev/null || true
 fi
 
