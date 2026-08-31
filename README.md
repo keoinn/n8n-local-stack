@@ -14,11 +14,11 @@
 
 ## 前置需求
 
-三種場景都需要 Docker 與 Docker Compose。
+三種場景都需要 Docker 與 Docker Compose（Windows 請裝 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)）。
 
 要用外網 webhook（Google OAuth、對外 callback）時，再準備 [ngrok](https://ngrok.com/) 的 Auth Token 與固定網域。`NGROK_DOMAIN` 只填網域，不要加 `https://`。compose 會組成 `https://<NGROK_DOMAIN>/` 當 webhook。只在本機編輯、不對外開洞時，可不上 ngrok。
 
-場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。
+場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。`.sh` 只給 macOS / Linux；Windows 用 `.\scripts\*.cmd` 或 `.\scripts\*.ps1`。macOS 跑 `pull-secrets.sh` 寫入 `.env` 需要 `python3`（系統通常已有）；Windows 不需要。
 
 ```bash
 # Windows
@@ -45,13 +45,17 @@ gcloud config get-value project
 ## 準備設定檔
 
 ```bash
+# macOS / Linux
 cp .env.example .env
+
+# Windows
+copy .env.example .env
 ```
 
 依 `.env.example` 的區塊填：
 
 - **必填區**：場景 A / B 要設本機 `POSTGRES_PASSWORD`（不要填雲端資料庫密碼）。要用 ngrok 再填 `NGROK_AUTHTOKEN`、`NGROK_DOMAIN`。
-- **場景 B / C**：填好 GCP 三項後執行 `./scripts/pull-secrets.sh`，讓腳本寫入 encryption key 與 Supabase 連線。不要手填「由指令或腳本產生」那一區。
+- **場景 B / C**：填好 GCP 三項後執行 `./scripts/pull-secrets.sh`（Windows：`.\scripts\pull-secrets.cmd`），讓腳本寫入 encryption key 與 Supabase 連線。不要手填「由指令或腳本產生」那一區。
 
 ---
 
@@ -78,9 +82,15 @@ docker compose up -d postgres n8n
 務必先拉密鑰再啟動容器，n8n 才會用和 Cloud Run 同一把 encryption key，Credentials 才能解密。
 
 ```bash
+# macOS / Linux
 ./scripts/pull-secrets.sh
 docker compose --profile tunnel up -d
 ./scripts/sync-from-cloud.sh
+
+# Windows
+.\scripts\pull-secrets.cmd
+docker compose --profile tunnel up -d
+.\scripts\sync-from-cloud.cmd
 ```
 
 啟動後本機暫時是空白的，屬正常現象；資料在同步完成後才會進來。同步期間腳本會暫停 n8n，ngrok 不用關。
@@ -92,7 +102,11 @@ docker compose --profile tunnel up -d
 之後若只要再拉一次 Credentials：
 
 ```bash
+# macOS / Linux
 ./scripts/sync-from-cloud.sh --credentials-only
+
+# Windows
+.\scripts\sync-from-cloud.cmd --credentials-only
 ```
 
 完整同步會清空本機對應資料表再匯入。除錯要留暫存檔時加上 `--keep-exports`。
@@ -103,12 +117,17 @@ docker compose --profile tunnel up -d
 
 ## 場景 C：本機 n8n 直連遠端 Supabase
 
-本機只跑 n8n（以及選用的 ngrok），資料庫就是 Cloud Run 正在用的那顆 Supabase。帳號與流程已經在雲端，**不要**跑 `sync-from-cloud.sh`。
+本機只跑 n8n（以及選用的 ngrok），資料庫就是 Cloud Run 正在用的那顆 Supabase。帳號與流程已經在雲端，**不要**跑 `sync-from-cloud`。
 
 這會和 Cloud Run 共用同一顆庫。兩邊同時開著時，排程與 webhook 可能各執行一次。本機測試前，請把 Cloud Run 縮成 0，或先暫停雲端流程。
 
 ```bash
+# macOS / Linux
 ./scripts/pull-secrets.sh
+docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel up -d
+
+# Windows
+.\scripts\pull-secrets.cmd
 docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel up -d
 ```
 
@@ -177,7 +196,11 @@ docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel do
 要拆掉這個專案的 container、映像，並清空 `data/`、`exports/`（不會刪 `.env`）：
 
 ```bash
+# macOS / Linux
 ./scripts/uninstall-local-n8n.sh
+
+# Windows
+.\scripts\uninstall-local-n8n.cmd
 ```
 
 ---
