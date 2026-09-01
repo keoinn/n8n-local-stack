@@ -4,6 +4,7 @@ $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
 $ExampleFile = Join-Path $Root '.env.example'
 $BackupFile = Join-Path $Root ('.env.backup.' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 function Write-Err([string]$Message) {
     [Console]::Error.WriteLine($Message)
@@ -52,7 +53,7 @@ function Update-EnvVar([string]$Key, [string]$Value) {
     $line = "$Key=$quoted"
     $lines = @()
     if (Test-Path -LiteralPath $EnvFile) {
-        $lines = @(Get-Content -LiteralPath $EnvFile)
+        $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
     }
     $found = $false
     $out = New-Object System.Collections.Generic.List[string]
@@ -71,8 +72,7 @@ function Update-EnvVar([string]$Key, [string]$Value) {
         }
         $out.Add($line)
     }
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $utf8NoBom)
+    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
 }
 
 function Get-Sanitized([string]$Value) {

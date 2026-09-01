@@ -2,13 +2,14 @@
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 function Write-Err([string]$Message) {
     [Console]::Error.WriteLine($Message)
 }
 
 function Import-DotEnv([string]$Path) {
-    Get-Content -LiteralPath $Path | ForEach-Object {
+    [System.IO.File]::ReadAllLines($Path, $Utf8NoBom) | ForEach-Object {
         $line = $_.Trim()
         if ($line -eq '' -or $line.StartsWith('#')) {
             return
@@ -40,7 +41,7 @@ function Update-EnvVar([string]$Key, [string]$Value) {
     $line = "$Key=$quoted"
     $lines = @()
     if (Test-Path -LiteralPath $EnvFile) {
-        $lines = @(Get-Content -LiteralPath $EnvFile)
+        $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
     }
     $found = $false
     $out = New-Object System.Collections.Generic.List[string]
@@ -59,8 +60,7 @@ function Update-EnvVar([string]$Key, [string]$Value) {
         }
         $out.Add($line)
     }
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $utf8NoBom)
+    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
