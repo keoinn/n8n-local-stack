@@ -18,7 +18,7 @@
 
 要用外網 webhook（Google OAuth、對外 callback）時，再準備 [ngrok](https://ngrok.com/) 的 Auth Token 與固定網域。`NGROK_DOMAIN` 只填網域，不要加 `https://`。compose 會組成 `https://<NGROK_DOMAIN>/` 當 webhook。只在本機編輯、不對外開洞時，可不上 ngrok。
 
-場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。`.sh` 只給 macOS / Linux；Windows 用 `.\scripts\*.cmd` 或 `.\scripts\*.ps1`。macOS 跑 `pull-secrets.sh` 寫入 `.env` 需要 `python3`（系統通常已有）；Windows 不需要。
+場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。`.sh` 只給 macOS / Linux；Windows 用 `.\scripts\*.cmd` 或 `.\scripts\*.ps1`。
 
 ```bash
 # Windows
@@ -56,6 +56,18 @@ copy .env.example .env
 
 - **必填區**：場景 A / B 要設本機 `POSTGRES_PASSWORD`（不要填雲端資料庫密碼）。要用 ngrok 再填 `NGROK_AUTHTOKEN`、`NGROK_DOMAIN`。
 - **場景 B / C**：填好 GCP 三項後執行 `./scripts/pull-secrets.sh`（Windows：`.\scripts\pull-secrets.cmd`），讓腳本寫入 encryption key 與 Supabase 連線。不要手填「由指令或腳本產生」那一區。
+
+設定完成後可檢查本機是否就緒：
+
+```bash
+# macOS / Linux
+./scripts/check-env.sh
+
+# Windows
+.\scripts\check-env.cmd
+```
+
+會確認 `.env`、場景與必填欄位、Docker（含 Compose 與 daemon），以及場景 B / C 所需的 `gcloud`。
 
 ---
 

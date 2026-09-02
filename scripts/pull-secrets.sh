@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 從 GCP Secret Manager / Cloud Run 寫入 .env（macOS / Linux）。
+# 相容 macOS 內建 Bash 3.2，請勿使用關聯陣列或 ${var,,}。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,37 +28,82 @@ if ! command -v gcloud >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "找不到 python3，寫入 .env 需要它。" >&2
-  exit 1
-fi
+quote_env_value() {
+  QUOTE_VAL="$1" awk 'BEGIN {
+    v = ENVIRON["QUOTE_VAL"]
+    gsub(/\047/, "\047\\\047\047", v)
+    printf "\047%s\047", v
+  }'
+}
 
 upsert_env() {
   local key="$1"
-  local value="$2"
-  python3 - "$key" "$value" "${ENV_FILE}" <<'PY'
-import sys
-from pathlib import Path
+  local value quoted tmp found
+  value="$(printf '%s' "$2" | tr -d '\r')"
+  quoted="$(quote_env_value "$value")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/pull-secrets.XXXXXX")"
+  found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "${key}="*)
+        printf '%s=%s\n' "$key" "$quoted"
+        found=1
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "${ENV_FILE}" > "$tmp"
+  if [[ "$found" -eq 0 ]]; then
+    printf '%s=%s\n' "$key" "$quoted" >> "$tmp"
+  fi
+  mv "$tmp" "${ENV_FILE}"
+}
 
-key, value, path = sys.argv[1], sys.argv[2], Path(sys.argv[3])
-quoted = "'" + value.replace("'", "'\\''") + "'"
-line = f"{key}={quoted}"
-text = path.read_text() if path.exists() else ""
-lines = text.splitlines()
-found = False
-out = []
-for existing in lines:
-    if existing.startswith(f"{key}=") and not existing.startswith("#"):
-        out.append(line)
-        found = True
-    else:
-        out.append(existing)
-if not found:
-    if out and out[-1] != "":
-        out.append("")
-    out.append(line)
-path.write_text("\n".join(out) + "\n")
-PY
+# 從 gcloud --format=text 取出第一個 container 某個 env 的 value（略過 valueFrom）。
+env_from_text() {
+  local file="$1"
+  local name="$2"
+  local idx value
+  idx="$(
+    grep -E 'spec\.template\.spec\.containers\[0\]\.env\[[0-9]+\]\.name:' "$file" \
+      | grep -E ":[[:space:]]*${name}[[:space:]]*$" \
+      | sed -n 's/.*\.env\[\([0-9][0-9]*\)\]\.name:.*/\1/p' \
+      | head -n 1 \
+      || true
+  )"
+  if [[ -z "$idx" ]]; then
+    return 0
+  fi
+  value="$(
+    grep -E "spec\\.template\\.spec\\.containers\\[0\\]\\.env\\[${idx}\\]\\.value:" "$file" \
+      | head -n 1 \
+      | sed 's/.*\.value:[[:space:]]*//' \
+      | tr -d '\r' \
+      | sed 's/[[:space:]]*$//' \
+      || true
+  )"
+  printf '%s' "$value"
+}
+
+write_mapped_cloud_env() {
+  local text_file="$1"
+  local pair cloud_key env_key value
+  for pair in \
+    "DB_POSTGRESDB_HOST:CLOUD_DB_POSTGRESDB_HOST" \
+    "DB_POSTGRESDB_PORT:CLOUD_DB_POSTGRESDB_PORT" \
+    "DB_POSTGRESDB_DATABASE:CLOUD_DB_POSTGRESDB_DATABASE" \
+    "DB_POSTGRESDB_USER:CLOUD_DB_POSTGRESDB_USER" \
+    "DB_POSTGRESDB_SCHEMA:CLOUD_DB_POSTGRESDB_SCHEMA"
+  do
+    cloud_key="${pair%%:*}"
+    env_key="${pair#*:}"
+    value="$(env_from_text "$text_file" "$cloud_key")"
+    if [[ -n "$value" ]]; then
+      upsert_env "$env_key" "$value"
+      echo "已寫入 ${env_key}"
+    fi
+  done
 }
 
 echo "從 Secret Manager 讀取 n8n-encryption-key ..."
@@ -86,55 +133,14 @@ upsert_env CLOUD_DB_POSTGRESDB_PASSWORD "${db_password}"
 echo "已寫入 CLOUD_DB_POSTGRESDB_PASSWORD"
 
 echo "從 Cloud Run 讀取 Supabase 連線設定 ..."
-cloud_json_file="$(mktemp)"
-trap 'rm -f "${cloud_json_file}"' EXIT
+cloud_text_file="$(mktemp "${TMPDIR:-/tmp}/pull-secrets-run.XXXXXX")"
+trap 'rm -f "${cloud_text_file}"' EXIT
 if gcloud run services describe "${GCP_RUN_SERVICE}" \
   --project="${GCP_PROJECT}" \
   --region="${GCP_REGION}" \
-  --format=json > "${cloud_json_file}"; then
-  python3 - "${ENV_FILE}" "${cloud_json_file}" <<'PY'
-import json, sys
-from pathlib import Path
-
-env_path = Path(sys.argv[1])
-svc = json.loads(Path(sys.argv[2]).read_text())
-envs = svc["spec"]["template"]["spec"]["containers"][0].get("env", [])
-mapping = {
-    "DB_POSTGRESDB_HOST": "CLOUD_DB_POSTGRESDB_HOST",
-    "DB_POSTGRESDB_PORT": "CLOUD_DB_POSTGRESDB_PORT",
-    "DB_POSTGRESDB_DATABASE": "CLOUD_DB_POSTGRESDB_DATABASE",
-    "DB_POSTGRESDB_USER": "CLOUD_DB_POSTGRESDB_USER",
-    "DB_POSTGRESDB_SCHEMA": "CLOUD_DB_POSTGRESDB_SCHEMA",
-}
-values = {}
-for item in envs:
-    name = item.get("name")
-    if name in mapping and "value" in item and item["value"]:
-        values[mapping[name]] = item["value"]
-
-def upsert(key, value):
-    quoted = "'" + value.replace("'", "'\\''") + "'"
-    line = f"{key}={quoted}"
-    text = env_path.read_text() if env_path.exists() else ""
-    lines = text.splitlines()
-    found = False
-    out = []
-    for existing in lines:
-        if existing.startswith(f"{key}=") and not existing.startswith("#"):
-            out.append(line)
-            found = True
-        else:
-            out.append(existing)
-    if not found:
-        if out and out[-1] != "":
-            out.append("")
-        out.append(line)
-    env_path.write_text("\n".join(out) + "\n")
-
-for key, value in values.items():
-    upsert(key, value)
-    print(f"已寫入 {key}")
-PY
+  --format=text \
+  > "${cloud_text_file}"; then
+  write_mapped_cloud_env "${cloud_text_file}"
 else
   echo "無法讀取 Cloud Run 服務，請自行確認 .env 裡的 CLOUD_DB_POSTGRESDB_*。" >&2
 fi
