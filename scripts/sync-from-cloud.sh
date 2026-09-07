@@ -37,6 +37,30 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+upsert_env() {
+  local key="$1"
+  local value="$2"
+  local quoted tmp found line
+  quoted="'${value}'"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/sync-from-cloud.XXXXXX")"
+  found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "${key}="*)
+        printf '%s=%s\n' "$key" "$quoted"
+        found=1
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "${ENV_FILE}" > "$tmp"
+  if [[ "$found" -eq 0 ]]; then
+    printf '%s=%s\n' "$key" "$quoted" >> "$tmp"
+  fi
+  mv "$tmp" "${ENV_FILE}"
+}
+
 # shellcheck disable=SC1090
 set -a
 source "${ENV_FILE}"
@@ -159,3 +183,7 @@ fi
 
 echo
 echo "雲端資料同步完成。"
+if [[ "${CREDENTIALS_ONLY}" -eq 0 ]]; then
+  upsert_env N8N_LOCAL_BOOTSTRAPPED B
+  echo "已在 .env 寫入 N8N_LOCAL_BOOTSTRAPPED=B，之後啟動不會再自動同步。"
+fi

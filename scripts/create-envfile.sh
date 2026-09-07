@@ -399,6 +399,7 @@ fi
 
 upsert_env N8N_SCENARIO "$SCENARIO"
 upsert_env ENABLE_NGROK "$ENABLE_NGROK"
+upsert_env N8N_LOCAL_BOOTSTRAPPED ""
 
 if [[ -n "$POSTGRES_PASSWORD" ]]; then
   upsert_env POSTGRES_PASSWORD "$POSTGRES_PASSWORD"

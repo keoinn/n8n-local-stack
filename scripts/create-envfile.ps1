@@ -337,6 +337,7 @@ if ($EnableNgrok -eq 'true') {
 
 Update-EnvVar 'N8N_SCENARIO' $Scenario
 Update-EnvVar 'ENABLE_NGROK' $EnableNgrok
+Update-EnvVar 'N8N_LOCAL_BOOTSTRAPPED' ''
 
 if ($PostgresPassword) {
     Update-EnvVar 'POSTGRES_PASSWORD' $PostgresPassword

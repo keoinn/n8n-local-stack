@@ -127,6 +127,44 @@ run_script() {
   return "$rc"
 }
 
+quote_env_value() {
+  QUOTE_VAL="$1" awk 'BEGIN {
+    v = ENVIRON["QUOTE_VAL"]
+    gsub(/\047/, "\047\\\047\047", v)
+    printf "\047%s\047", v
+  }'
+}
+
+upsert_env() {
+  local key="$1"
+  local value
+  local quoted tmp found
+  value="$(sanitize_env_value "$2")"
+  quoted="$(quote_env_value "$value")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/start-n8n.XXXXXX")"
+  found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "${key}="*)
+        printf '%s=%s\n' "$key" "$quoted"
+        found=1
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "${ENV_FILE}" > "$tmp"
+  if [[ "$found" -eq 0 ]]; then
+    printf '%s=%s\n' "$key" "$quoted" >> "$tmp"
+  fi
+  mv "$tmp" "${ENV_FILE}"
+}
+
+write_bootstrapped() {
+  upsert_env N8N_LOCAL_BOOTSTRAPPED "$1"
+  write_marker "$1" || warn "無法寫入啟動紀錄檔。"
+}
+
 write_marker() {
   mkdir -p "${ROOT}/data"
   local text
@@ -222,9 +260,13 @@ if [[ -z "$N8N_IMAGE" ]]; then
   N8N_IMAGE="n8nio/n8n:2.36.8"
 fi
 
+ENV_BOOT="$(get_env_value N8N_LOCAL_BOOTSTRAPPED)"
+ENV_BOOT="$(printf '%s' "$ENV_BOOT" | tr '[:lower:]' '[:upper:]')"
 PREV_SCENARIO="$(marker_scenario)"
 BOOTSTRAPPED=0
-if [[ -n "$PREV_SCENARIO" && "$PREV_SCENARIO" = "$SCENARIO" ]]; then
+if [[ -n "$ENV_BOOT" && "$ENV_BOOT" = "$SCENARIO" ]]; then
+  BOOTSTRAPPED=1
+elif [[ -n "$PREV_SCENARIO" && "$PREV_SCENARIO" = "$SCENARIO" ]]; then
   BOOTSTRAPPED=1
 fi
 
@@ -299,7 +341,7 @@ case "$SCENARIO" in
       body "場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。"
       run_script scripts/sync-from-cloud.sh || exit 1
       STEP5_SUMMARY="場景 B 已將 Cloud Run 資料複製到本機。"
-      write_marker "$SCENARIO" || warn "無法寫入啟動紀錄。"
+      write_bootstrapped "$SCENARIO" || warn "無法寫入啟動紀錄。"
     else
       STEP5_SUMMARY="場景 B 資料先前已同步，無需再次複製雲端資料。"
     fi
@@ -313,7 +355,7 @@ case "$SCENARIO" in
 esac
 
 if [[ -n "$SCENARIO" ]]; then
-  write_marker "$SCENARIO" || warn "無法寫入啟動紀錄。"
+  write_bootstrapped "$SCENARIO" || warn "無法寫入啟動紀錄。"
 fi
 
 print_ready_banner

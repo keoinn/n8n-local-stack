@@ -32,7 +32,7 @@ Windows 的 `.cmd` 是入口，實際邏輯在 `scripts/*.ps1`。macOS / Linux �
 | B | 先 `pull-secrets`，啟動後再 `sync-from-cloud` 複製雲端資料 |
 | C | 先 `pull-secrets` 寫入密鑰與遠端資料庫連線，**不**跑資料同步 |
 
-之後只要再開一次，執行同一支腳本即可。若映像已在本機，只會啟動 container，不會重新下載映像。場景 B 不會重複覆蓋本機資料；若要再同步，請自行執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。要關閉容器但不刪資料，請執行 `./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）。
+之後只要再開一次，執行同一支腳本即可。若映像已在本機，只會啟動 container，不會重新下載映像。場景 B 首次同步成功後會在 `.env` 寫入 `N8N_LOCAL_BOOTSTRAPPED=B`，之後不會再自動複製雲端資料；若要再同步，請自行執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。要關閉容器但不刪資料，請執行 `./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）。
 
 拆掉本機環境（`uninstall-local-n8n`）後再啟動，會視為首次，密鑰與場景 B 資料會再拉一次。
 

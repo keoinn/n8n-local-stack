@@ -88,6 +88,25 @@ fi
 if [[ "${KEEP_ENV}" -eq 0 ]]; then
   echo "刪除 .env ..."
   rm -f "${ROOT}/.env"
+elif [[ "${KEEP_DATA}" -eq 0 && -f "${ROOT}/.env" ]]; then
+  echo "資料已清空，清除 .env 的 N8N_LOCAL_BOOTSTRAPPED ..."
+  tmp="$(mktemp "${TMPDIR:-/tmp}/uninstall-n8n.XXXXXX")"
+  found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      N8N_LOCAL_BOOTSTRAPPED=*)
+        printf "N8N_LOCAL_BOOTSTRAPPED=''\n"
+        found=1
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "${ROOT}/.env" > "$tmp"
+  if [[ "$found" -eq 0 ]]; then
+    printf "N8N_LOCAL_BOOTSTRAPPED=''\n" >> "$tmp"
+  fi
+  mv "$tmp" "${ROOT}/.env"
 fi
 
 echo

@@ -94,6 +94,34 @@ function Import-DotEnv([string]$Path) {
     }
 }
 
+function Update-EnvVar([string]$Key, [string]$Value) {
+    $value = (($Value -replace '[\r\n]+', '')).Trim()
+    $quoted = "'" + $value.Replace("'", "'\''") + "'"
+    $line = "$Key=$quoted"
+    $lines = @()
+    if (Test-Path -LiteralPath $EnvFile) {
+        $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
+    }
+    $found = $false
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($existing in $lines) {
+        if (-not $found -and $existing.StartsWith("$Key=") -and -not $existing.StartsWith('#')) {
+            $out.Add($line)
+            $found = $true
+        }
+        else {
+            $out.Add($existing)
+        }
+    }
+    if (-not $found) {
+        if ($out.Count -gt 0 -and $out[$out.Count - 1] -ne '') {
+            $out.Add('')
+        }
+        $out.Add($line)
+    }
+    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
+}
+
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     Write-Err "找不到 $EnvFile，請先複製 .env.example 並執行 .\scripts\pull-secrets.cmd"
     Exit-N8nScript 1
@@ -247,3 +275,7 @@ if (-not $KeepExports) {
 
 Write-Host ''
 Write-Host '雲端資料同步完成。'
+if (-not $CredentialsOnly) {
+    Update-EnvVar 'N8N_LOCAL_BOOTSTRAPPED' 'B'
+    Write-Host '已在 .env 寫入 N8N_LOCAL_BOOTSTRAPPED=B，之後啟動不會再自動同步。'
+}

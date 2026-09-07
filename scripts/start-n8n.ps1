@@ -108,26 +108,67 @@ function Invoke-ProjectScript {
     Write-Host ''
 
     # 必須在同一個主控台用 `&` 呼叫，設定精靈的提示才會顯示。
-    # 子腳本的 Exit-N8nScript 在 N8N_ORCHESTRATED=1 時會 throw，而不是 exit。
+    # 子腳本 stdout 必須 Out-Host，否則 docker 輸出會變成回傳值，呼叫端誤判失敗並 exit。
+    $code = 0
     try {
         $global:LASTEXITCODE = 0
         if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
-            & $path @ScriptArgs
+            & $path @ScriptArgs | Out-Host
         }
         else {
-            & $path
+            & $path | Out-Host
         }
-        # 成功結束的子腳本不會設 LASTEXITCODE；不可沿用工作階段裡的舊值。
-        return 0
+        $code = 0
     }
     catch {
         $text = @($_.Exception.Message, [string]$_)
         $joined = ($text -join "`n")
         if ($joined -match 'n8n-script-exit:(\d+)') {
-            return [int]$Matches[1]
+            $code = [int]$Matches[1]
         }
-        Write-Err $_.Exception.Message
-        return 1
+        else {
+            Write-Err $_.Exception.Message
+            $code = 1
+        }
+    }
+    return [int]$code
+}
+
+function Update-EnvVar([string]$Key, [string]$Value) {
+    $value = Get-Sanitized $Value
+    $quoted = "'" + $value.Replace("'", "'\''") + "'"
+    $line = "$Key=$quoted"
+    $lines = @()
+    if (Test-Path -LiteralPath $EnvFile) {
+        $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
+    }
+    $found = $false
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($existing in $lines) {
+        if (-not $found -and $existing.StartsWith("$Key=") -and -not $existing.StartsWith('#')) {
+            $out.Add($line)
+            $found = $true
+        }
+        else {
+            $out.Add($existing)
+        }
+    }
+    if (-not $found) {
+        if ($out.Count -gt 0 -and $out[$out.Count - 1] -ne '') {
+            $out.Add('')
+        }
+        $out.Add($line)
+    }
+    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
+}
+
+function Write-Bootstrapped([string]$Scenario) {
+    Update-EnvVar 'N8N_LOCAL_BOOTSTRAPPED' $Scenario
+    try {
+        Write-Marker $Scenario
+    }
+    catch {
+        Write-WarnLine "無法寫入啟動紀錄檔：$($_.Exception.Message)"
     }
 }
 
@@ -246,8 +287,9 @@ if ([string]::IsNullOrWhiteSpace($n8nImage)) {
     $n8nImage = 'n8nio/n8n:2.36.8'
 }
 
+$envBoot = (Get-EnvValue 'N8N_LOCAL_BOOTSTRAPPED').ToUpperInvariant()
 $prevScenario = Get-MarkerScenario
-$bootstrapped = (-not [string]::IsNullOrWhiteSpace($prevScenario) -and $prevScenario -eq $scenario)
+$bootstrapped = (($envBoot -eq $scenario) -or (-not [string]::IsNullOrWhiteSpace($prevScenario) -and $prevScenario -eq $scenario))
 
 $secretsReady = (-not (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) -and -not (Test-Placeholder (Get-EnvValue 'CLOUD_DB_POSTGRESDB_HOST')))
 
@@ -315,7 +357,7 @@ switch ($scenario) {
             $rc = Invoke-ProjectScript 'sync-from-cloud.ps1'
             if ($rc -ne 0) { exit $rc }
             $step5Summary = '場景 B 已將 Cloud Run 資料複製到本機。'
-            try { Write-Marker $scenario } catch { Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)" }
+            try { Write-Bootstrapped $scenario } catch { Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)" }
         }
         else {
             $step5Summary = '場景 B 資料先前已同步，無需再次複製雲端資料。'
@@ -331,7 +373,7 @@ switch ($scenario) {
 
 if (-not [string]::IsNullOrWhiteSpace($scenario)) {
     try {
-        Write-Marker $scenario
+        Write-Bootstrapped $scenario
     }
     catch {
         Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)"

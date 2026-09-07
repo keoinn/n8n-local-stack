@@ -110,6 +110,29 @@ if (-not $KeepEnv) {
         Remove-Item -LiteralPath $envPath -Force
     }
 }
+elseif (-not $KeepData) {
+    $envPath = Join-Path $Root '.env'
+    if (Test-Path -LiteralPath $envPath) {
+        Write-Host '資料已清空，清除 .env 的 N8N_LOCAL_BOOTSTRAPPED ...'
+        $utf8 = New-Object System.Text.UTF8Encoding $false
+        $lines = [System.IO.File]::ReadAllLines($envPath, $utf8)
+        $out = New-Object System.Collections.Generic.List[string]
+        $found = $false
+        foreach ($existing in $lines) {
+            if (-not $found -and $existing.StartsWith('N8N_LOCAL_BOOTSTRAPPED=') -and -not $existing.StartsWith('#')) {
+                $out.Add("N8N_LOCAL_BOOTSTRAPPED=''")
+                $found = $true
+            }
+            else {
+                $out.Add($existing)
+            }
+        }
+        if (-not $found) {
+            $out.Add("N8N_LOCAL_BOOTSTRAPPED=''")
+        }
+        [System.IO.File]::WriteAllText($envPath, (($out -join "`n") + "`n"), $utf8)
+    }
+}
 
 Write-Host ''
 if ($KeepEnv) {
