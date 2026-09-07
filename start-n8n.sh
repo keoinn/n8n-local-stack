@@ -153,6 +153,7 @@ image_exists() {
   docker image inspect "$image" >/dev/null 2>&1
 }
 
+export N8N_ORCHESTRATED=1
 cd "${ROOT}"
 
 printf '\n'
@@ -171,6 +172,7 @@ else
     error "仍找不到 .env，無法繼續。"
     exit 1
   fi
+  success "設定已寫入，接著檢查環境並啟動 n8n。"
 fi
 
 SCENARIO="$(get_env_value N8N_SCENARIO)"

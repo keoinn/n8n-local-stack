@@ -382,36 +382,38 @@ fi
 title "────────────────────────────────────────────────────────────"
 printf '\n'
 
-if [[ "$FAIL" -gt 0 ]]; then
-  body "建議下一步："
-  if [[ "$HAS_ENV" -eq 0 ]]; then
-    muted "  ./scripts/create-envfile.sh"
-  else
+if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
+  if [[ "$FAIL" -gt 0 ]]; then
+    body "建議下一步："
+    if [[ "$HAS_ENV" -eq 0 ]]; then
+      muted "  ./scripts/create-envfile.sh"
+    else
+      case "$SCENARIO" in
+        B|C)
+          muted "  修正上方失敗項目後，若密鑰尚未寫入，再執行 ./scripts/pull-secrets.sh"
+          ;;
+        *)
+          muted "  修正 .env 或安裝缺少的工具後，再執行本檢查。"
+          ;;
+      esac
+    fi
+  elif [[ "$WARN" -gt 0 ]]; then
+    body "建議下一步："
     case "$SCENARIO" in
       B|C)
-        muted "  修正上方失敗項目後，若密鑰尚未寫入，再執行 ./scripts/pull-secrets.sh"
+        muted "  ./scripts/pull-secrets.sh"
+        muted "  完成後再執行 ./scripts/start-local-n8n.sh"
         ;;
       *)
-        muted "  修正 .env 或安裝缺少的工具後，再執行本檢查。"
+        muted "  ./scripts/start-local-n8n.sh"
         ;;
     esac
+  else
+    body "建議下一步："
+    muted "  ./scripts/start-local-n8n.sh"
   fi
-elif [[ "$WARN" -gt 0 ]]; then
-  body "建議下一步："
-  case "$SCENARIO" in
-    B|C)
-      muted "  ./scripts/pull-secrets.sh"
-      muted "  完成後再執行 ./scripts/start-local-n8n.sh"
-      ;;
-    *)
-      muted "  ./scripts/start-local-n8n.sh"
-      ;;
-  esac
-else
-  body "建議下一步："
-  muted "  ./scripts/start-local-n8n.sh"
+  printf '\n'
 fi
-printf '\n'
 
 if [[ "$FAIL" -gt 0 ]]; then
   exit 1

@@ -96,6 +96,10 @@ function Invoke-ProjectScript {
         [string[]]$ScriptArgs = @()
     )
     $path = Join-Path $Root "scripts\$Name"
+    if (-not (Test-Path -LiteralPath $path)) {
+        Write-Err "找不到 $path"
+        return 1
+    }
     if ($ScriptArgs.Count -gt 0) {
         Write-Muted ("  → scripts\" + $Name + " " + ($ScriptArgs -join ' '))
     }
@@ -103,16 +107,23 @@ function Invoke-ProjectScript {
         Write-Muted "  → scripts\$Name"
     }
     Write-Host ''
+
+    # 子腳本若用 `exit`，在 powershell -File 裡用 `&` 呼叫會結束整個行程。
+    # 改開子行程，設定精靈結束後才能繼續檢查環境並啟動。
+    $shell = (Get-Process -Id $PID).Path
+    $childArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $path)
     if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
-        & $path @ScriptArgs
+        $childArgs += $ScriptArgs
     }
-    else {
-        & $path
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $shell @childArgs
+    $rc = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    if ($null -eq $rc) {
+        return 0
     }
-    if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
-        return $LASTEXITCODE
-    }
-    return 0
+    return [int]$rc
 }
 
 function Write-Marker([string]$Scenario) {
@@ -154,6 +165,7 @@ function Test-DockerImage([string]$Image) {
     return $ok
 }
 
+$env:N8N_ORCHESTRATED = '1'
 Set-Location -LiteralPath $Root
 
 Write-Host ''
@@ -176,6 +188,7 @@ else {
         Write-Err '仍找不到 .env，無法繼續。'
         exit 1
     }
+    Write-OkLine '設定已寫入，接著檢查環境並啟動 n8n。'
 }
 
 $scenario = (Get-EnvValue 'N8N_SCENARIO').ToUpperInvariant()

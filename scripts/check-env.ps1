@@ -387,33 +387,35 @@ else {
 Write-Title '────────────────────────────────────────────────────────────'
 Write-Host ''
 
-if ($script:Fail -gt 0) {
-    Write-Body '建議下一步：'
-    if (-not $hasEnv) {
-        Write-Muted '  .\scripts\create-envfile.ps1'
+if ($env:N8N_ORCHESTRATED -ne '1') {
+    if ($script:Fail -gt 0) {
+        Write-Body '建議下一步：'
+        if (-not $hasEnv) {
+            Write-Muted '  .\scripts\create-envfile.ps1'
+        }
+        elseif ($scenario -in @('B', 'C')) {
+            Write-Muted '  修正上方失敗項目後，若密鑰尚未寫入，再執行 .\scripts\pull-secrets.cmd'
+        }
+        else {
+            Write-Muted '  修正 .env 或安裝缺少的工具後，再執行本檢查。'
+        }
     }
-    elseif ($scenario -in @('B', 'C')) {
-        Write-Muted '  修正上方失敗項目後，若密鑰尚未寫入，再執行 .\scripts\pull-secrets.cmd'
+    elseif ($script:Warn -gt 0) {
+        Write-Body '建議下一步：'
+        if ($scenario -in @('B', 'C')) {
+            Write-Muted '  .\scripts\pull-secrets.cmd'
+            Write-Muted '  完成後再執行 .\scripts\start-local-n8n.cmd'
+        }
+        else {
+            Write-Muted '  .\scripts\start-local-n8n.cmd'
+        }
     }
     else {
-        Write-Muted '  修正 .env 或安裝缺少的工具後，再執行本檢查。'
-    }
-}
-elseif ($script:Warn -gt 0) {
-    Write-Body '建議下一步：'
-    if ($scenario -in @('B', 'C')) {
-        Write-Muted '  .\scripts\pull-secrets.cmd'
-        Write-Muted '  完成後再執行 .\scripts\start-local-n8n.cmd'
-    }
-    else {
+        Write-Body '建議下一步：'
         Write-Muted '  .\scripts\start-local-n8n.cmd'
     }
+    Write-Host ''
 }
-else {
-    Write-Body '建議下一步：'
-    Write-Muted '  .\scripts\start-local-n8n.cmd'
-}
-Write-Host ''
 
 if ($script:Fail -gt 0) {
     exit 1
