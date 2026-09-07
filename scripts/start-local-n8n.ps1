@@ -115,6 +115,10 @@ if ($LASTEXITCODE -ne 0) {
     Exit-N8nScript $LASTEXITCODE
 }
 
+if ($enableNgrok -eq 'true' -and $env:N8N_ORCHESTRATED -ne '1') {
+    & (Join-Path $PSScriptRoot 'check-ngrok-service.ps1') | Out-Host
+}
+
 function Get-DisplayWidth([string]$Text) {
     $width = 0
     if ([string]::IsNullOrEmpty($Text)) {
@@ -156,6 +160,11 @@ function Write-AlignedField {
 if ($env:N8N_ORCHESTRATED -ne '1') {
     $internalUrl = 'http://localhost:5678'
     $externalUrl = ''
+    $ngrokStatus = ''
+    $statusFile = Join-Path $Root 'data\.ngrok-status'
+    if (Test-Path -LiteralPath $statusFile) {
+        $ngrokStatus = ([System.IO.File]::ReadAllText($statusFile, $Utf8NoBom)).Trim()
+    }
     if ($enableNgrok -eq 'true' -and -not [string]::IsNullOrWhiteSpace($ngrokDomain) -and $ngrokDomain -ne 'YOUR_NGROK_DOMAIN') {
         $externalUrl = "https://$ngrokDomain"
     }
@@ -166,7 +175,10 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
     Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
     Write-Host ''
     Write-AlignedField '內部網址' $internalUrl
-    if ($externalUrl) {
+    if ($ngrokStatus -eq 'occupied') {
+        Write-AlignedField '外部網址' '固定網域已被其他設備佔用，無法使用對外 webhook' 'Yellow'
+    }
+    elseif ($externalUrl) {
         Write-AlignedField '外部網址' $externalUrl
         Write-AlignedField 'ngrok 檢查頁' 'http://127.0.0.1:4040'
     }
@@ -174,5 +186,10 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
         Write-AlignedField '外部網址' '未啟用 ngrok，無法使用對外 webhook' 'Yellow'
     }
     Write-Host ''
-    Write-Host '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
+    if ($ngrokStatus -eq 'occupied') {
+        Write-Host '  請以內部網址開啟本機編輯器；固定網域已被其他設備佔用。' -ForegroundColor Green
+    }
+    else {
+        Write-Host '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
+    }
 }

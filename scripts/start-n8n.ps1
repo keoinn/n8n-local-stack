@@ -221,9 +221,18 @@ function Write-AlignedField {
     }
 }
 
+function Get-NgrokCheckStatus {
+    $path = Join-Path $Root 'data\.ngrok-status'
+    if (-not (Test-Path -LiteralPath $path)) {
+        return ''
+    }
+    return ([System.IO.File]::ReadAllText($path, $Utf8NoBom)).Trim()
+}
+
 function Write-ReadyBanner {
     $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
     $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
+    $ngrokStatus = Get-NgrokCheckStatus
     if ([string]::IsNullOrWhiteSpace($enableNgrok)) {
         $enableNgrok = 'false'
     }
@@ -239,7 +248,10 @@ function Write-ReadyBanner {
     Write-Title '════════════════════════════════════════════════════════════'
     Write-Host ''
     Write-AlignedField '內部網址' $internalUrl
-    if ($externalUrl) {
+    if ($ngrokStatus -eq 'occupied') {
+        Write-AlignedField '外部網址' '固定網域已被其他設備佔用，無法使用對外 webhook' 'Yellow'
+    }
+    elseif ($externalUrl) {
         Write-AlignedField '外部網址' $externalUrl
         Write-AlignedField 'ngrok 檢查頁' 'http://127.0.0.1:4040'
     }
@@ -247,7 +259,12 @@ function Write-ReadyBanner {
         Write-AlignedField '外部網址' '未啟用 ngrok，無法使用對外 webhook' 'Yellow'
     }
     Write-Host ''
-    Write-OkLine '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。'
+    if ($ngrokStatus -eq 'occupied') {
+        Write-OkLine '  請以內部網址開啟本機編輯器；固定網域已被其他設備佔用。'
+    }
+    else {
+        Write-OkLine '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。'
+    }
 }
 
 function Get-MarkerScenario {
@@ -381,6 +398,11 @@ else {
     Write-Body '依 .env 啟動容器；本機沒有的映像會在此時下載。'
     $rc = Invoke-ProjectScript 'start-local-n8n.ps1'
     if ($rc -ne 0) { exit $rc }
+}
+
+$enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
+if ($enableNgrok -eq 'true') {
+    $null = Invoke-ProjectScript 'check-ngrok-service.ps1'
 }
 
 $step5Summary = ''

@@ -155,9 +155,17 @@ muted "  docker ${compose_args[*]}"
 printf '\n'
 docker "${compose_args[@]}"
 
+if [[ "$ENABLE_NGROK" = "true" && "${N8N_ORCHESTRATED:-}" != "1" ]]; then
+  "${ROOT}/scripts/check-ngrok-service.sh" || true
+fi
+
 if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
   INTERNAL_URL="http://localhost:5678"
   EXTERNAL_URL=""
+  NGROK_STATUS=""
+  if [[ -f "${ROOT}/data/.ngrok-status" ]]; then
+    NGROK_STATUS="$(tr -d '\r\n' < "${ROOT}/data/.ngrok-status")"
+  fi
   if [[ "$ENABLE_NGROK" = "true" && -n "$NGROK_DOMAIN" && "$NGROK_DOMAIN" != "YOUR_NGROK_DOMAIN" ]]; then
     EXTERNAL_URL="https://${NGROK_DOMAIN}"
   fi
@@ -168,12 +176,18 @@ if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
   title "════════════════════════════════════════════════════════════"
   printf '\n'
   print_url_field "內部網址" "$INTERNAL_URL"
-  if [[ -n "$EXTERNAL_URL" ]]; then
+  if [[ "$NGROK_STATUS" = "occupied" ]]; then
+    print_url_field "外部網址" "固定網域已被其他設備佔用，無法使用對外 webhook" "$C_YELLOW"
+  elif [[ -n "$EXTERNAL_URL" ]]; then
     print_url_field "外部網址" "$EXTERNAL_URL"
     print_url_field "ngrok 檢查頁" "http://127.0.0.1:4040"
   else
     print_url_field "外部網址" "未啟用 ngrok，無法使用對外 webhook" "$C_YELLOW"
   fi
   printf '\n'
-  success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  if [[ "$NGROK_STATUS" = "occupied" ]]; then
+    success "  請以內部網址開啟本機編輯器；固定網域已被其他設備佔用。"
+  else
+    success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  fi
 fi

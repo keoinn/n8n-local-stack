@@ -185,10 +185,20 @@ print_url_field() {
   printf '%b\n' "  ${C_WHITE}${label}${pad}${C_RESET}  ${color}${value}${C_RESET}"
 }
 
+get_ngrok_check_status() {
+  local path="${ROOT}/data/.ngrok-status"
+  if [[ ! -f "$path" ]]; then
+    printf ''
+    return 0
+  fi
+  tr -d '\r\n' < "$path"
+}
+
 print_ready_banner() {
-  local enable_ngrok domain internal_url external_url
+  local enable_ngrok domain internal_url external_url ngrok_status
   enable_ngrok="$(get_env_value ENABLE_NGROK)"
   domain="$(get_env_value NGROK_DOMAIN)"
+  ngrok_status="$(get_ngrok_check_status)"
   enable_ngrok="$(printf '%s' "$enable_ngrok" | tr '[:upper:]' '[:lower:]')"
   if [[ -z "$enable_ngrok" ]]; then
     enable_ngrok="false"
@@ -205,14 +215,20 @@ print_ready_banner() {
   title "════════════════════════════════════════════════════════════"
   printf '\n'
   print_url_field "內部網址" "$internal_url"
-  if [[ -n "$external_url" ]]; then
+  if [[ "$ngrok_status" = "occupied" ]]; then
+    print_url_field "外部網址" "固定網域已被其他設備佔用，無法使用對外 webhook" "$C_YELLOW"
+  elif [[ -n "$external_url" ]]; then
     print_url_field "外部網址" "$external_url"
     print_url_field "ngrok 檢查頁" "http://127.0.0.1:4040"
   else
     print_url_field "外部網址" "未啟用 ngrok，無法使用對外 webhook" "$C_YELLOW"
   fi
   printf '\n'
-  success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  if [[ "$ngrok_status" = "occupied" ]]; then
+    success "  請以內部網址開啟本機編輯器；固定網域已被其他設備佔用。"
+  else
+    success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  fi
 }
 
 marker_scenario() {
@@ -343,6 +359,12 @@ if [[ "$NO_PULL" -eq 1 ]]; then
 else
   body "依 .env 啟動容器；本機沒有的映像會在此時下載。"
   run_script scripts/start-local-n8n.sh || exit 1
+fi
+
+ENABLE_NGROK="$(get_env_value ENABLE_NGROK)"
+ENABLE_NGROK="$(printf '%s' "$ENABLE_NGROK" | tr '[:upper:]' '[:lower:]')"
+if [[ "$ENABLE_NGROK" = "true" ]]; then
+  run_script scripts/check-ngrok-service.sh || true
 fi
 
 STEP5_SUMMARY=""
