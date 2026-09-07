@@ -6,17 +6,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${ROOT}/.env"
 
+NO_PULL=0
+
 usage() {
   cat <<'EOF'
 依 .env 的場景與 ngrok 設定啟動本機 n8n，完成後顯示內部與外部網址。
 
 用法：
   ./scripts/start-local-n8n.sh
+  ./scripts/start-local-n8n.sh --no-pull   不重新下載映像，只建立或啟動 container
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --no-pull)
+      NO_PULL=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -27,6 +33,7 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
   esac
+  shift
 done
 
 if [[ -t 1 ]]; then
@@ -124,8 +131,15 @@ else
     compose_args+=(up -d postgres n8n)
   fi
 fi
+if [[ "$NO_PULL" -eq 1 ]]; then
+  compose_args+=(--pull never)
+fi
 
-body "啟動 n8n（場景 ${SCENARIO}）..."
+if [[ "$NO_PULL" -eq 1 ]]; then
+  body "啟動 n8n（場景 ${SCENARIO}，不下載映像）..."
+else
+  body "啟動 n8n（場景 ${SCENARIO}）..."
+fi
 muted "  docker ${compose_args[*]}"
 printf '\n'
 docker "${compose_args[@]}"

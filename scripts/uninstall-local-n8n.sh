@@ -69,6 +69,7 @@ fi
 
 if [[ "${KEEP_DATA}" -eq 0 ]]; then
   echo "清空 bind mount：data/n8n、data/postgres、exports/（保留 .gitkeep）..."
+  rm -f "${ROOT}/data/.local-bootstrapped"
   clear_bind_mount() {
     local dir="$1"
     mkdir -p "${dir}"

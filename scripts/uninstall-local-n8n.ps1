@@ -88,6 +88,10 @@ function Clear-BindMountDir([string]$Rel) {
 
 if (-not $KeepData) {
     Write-Host '清空 bind mount：data/n8n、data/postgres、exports/（保留 .gitkeep）...'
+    $marker = Join-Path $Root 'data\.local-bootstrapped'
+    if (Test-Path -LiteralPath $marker) {
+        Remove-Item -LiteralPath $marker -Force
+    }
     foreach ($rel in @('data\n8n', 'data\postgres', 'exports')) {
         Clear-BindMountDir $rel
     }

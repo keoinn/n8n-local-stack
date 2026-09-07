@@ -12,6 +12,30 @@
 
 ---
 
+## 開始使用
+
+建議從專案根目錄執行啟動精靈，會依序建立 `.env`、檢查環境，再依場景啟動：
+
+```bash
+# macOS / Linux
+./start-n8n.sh
+
+# Windows
+.\start-n8n.cmd
+```
+
+| 場景 | 精靈會多做的事 |
+| --- | --- |
+| A | 直接啟動本機 Postgres + n8n |
+| B | 先 `pull-secrets`，啟動後再 `sync-from-cloud` 複製雲端資料 |
+| C | 先 `pull-secrets` 寫入密鑰與遠端資料庫連線，**不**跑資料同步 |
+
+之後只要再開一次，執行同一支腳本即可。若映像已在本機，只會啟動 container，不會重新下載映像。場景 B 不會重複覆蓋本機資料；若要再同步，請自行執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。
+
+拆掉本機環境（`uninstall-local-n8n`）後再啟動，會視為首次，密鑰與場景 B 資料會再拉一次。
+
+---
+
 ## 前置需求
 
 三種場景都需要 Docker 與 Docker Compose（Windows 請裝 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)）。
@@ -43,6 +67,8 @@ gcloud config get-value project
 ---
 
 ## 準備設定檔
+
+也可不跑精靈、自行複製後填寫：
 
 ```bash
 # macOS / Linux
@@ -187,6 +213,9 @@ https://<你的 ngrok 網域>
 ## 日常開關
 
 ```bash
+# 建議：同一支啟動精靈（已啟動過則不下載映像）
+./start-n8n.sh              # Windows：.\start-n8n.cmd
+
 # 場景 A / B：本機編輯器
 docker compose up -d postgres n8n
 

@@ -8,6 +8,8 @@ function Write-Err([string]$Message) {
     [Console]::Error.WriteLine($Message)
 }
 
+$NoPull = $false
+
 function Show-Usage {
     @'
 依 .env 的場景與 ngrok 設定啟動本機 n8n，完成後顯示內部與外部網址。
@@ -15,11 +17,13 @@ function Show-Usage {
 用法：
   .\scripts\start-local-n8n.ps1
   .\scripts\start-local-n8n.cmd
+  .\scripts\start-local-n8n.ps1 --no-pull   不重新下載映像，只建立或啟動 container
 '@ | Write-Host
 }
 
 foreach ($arg in $args) {
     switch ($arg) {
+        '--no-pull' { $NoPull = $true }
         { $_ -in @('-h', '--help', '/?') } {
             Show-Usage
             exit 0
@@ -93,8 +97,16 @@ elseif ($scenario -eq 'C') {
 else {
     $composeArgs += @('up', '-d', 'postgres', 'n8n')
 }
+if ($NoPull) {
+    $composeArgs += @('--pull', 'never')
+}
 
-Write-Host "啟動 n8n（場景 $scenario）..." -ForegroundColor White
+if ($NoPull) {
+    Write-Host "啟動 n8n（場景 $scenario，不下載映像）..." -ForegroundColor White
+}
+else {
+    Write-Host "啟動 n8n（場景 $scenario）..." -ForegroundColor White
+}
 Write-Host ("  docker " + ($composeArgs -join ' ')) -ForegroundColor DarkGray
 Write-Host ''
 
