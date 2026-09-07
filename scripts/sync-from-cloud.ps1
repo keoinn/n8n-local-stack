@@ -243,6 +243,5 @@ if (-not $KeepExports) {
 }
 
 Write-Host ''
-Write-Host '同步完成。編輯器：http://localhost:5678'
-Write-Host '請用 Cloud Run 同一組帳密登入。'
-Write-Host '需要外網 webhook 時：docker compose --profile tunnel up -d'
+Write-Host '雲端資料同步完成。'
+Exit-N8nScript 0

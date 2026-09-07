@@ -158,6 +158,4 @@ if [[ "${KEEP_EXPORTS}" -eq 0 ]]; then
 fi
 
 echo
-echo "同步完成。編輯器：http://localhost:5678"
-echo "請用 Cloud Run 同一組帳密登入。"
-echo "需要外網 webhook 時：docker compose --profile tunnel up -d"
+echo "雲端資料同步完成。"

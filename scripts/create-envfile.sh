@@ -141,6 +141,49 @@ read_required() {
   done
 }
 
+read_with_default() {
+  local line1="$1"
+  local line2="$2"
+  local default="$3"
+  local dest="$4"
+  local input=""
+  print_prompt "$line1" "$line2"
+  input="$(read_line)"
+  if [[ -z "$input" ]]; then
+    input="$default"
+    success "已採用預設值 ${input}。"
+  fi
+  printf -v "$dest" '%s' "$input"
+  printf '\n'
+}
+
+generate_alnum_password() {
+  local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  local pw="" i n
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    n="$(LC_ALL=C od -An -N2 -tu2 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    if [[ -z "$n" ]]; then
+      n="$(date +%s)"
+    fi
+    pw="${pw}${chars:$((n % 62)):1}"
+  done
+  printf '%s' "$pw"
+}
+
+read_postgres_password() {
+  local dest="$1"
+  local input=""
+  print_prompt "${STEP3_PREFIX}請提供本機 Postgres 資料庫密碼（POSTGRES_PASSWORD）" "此密碼僅供本機容器使用，請勿填寫雲端資料庫帳密（直接按 Enter 產生 10 字元隨機密碼）："
+  input="$(read_line)"
+  if [[ -z "$input" ]]; then
+    input="$(generate_alnum_password)"
+    success "已產生 10 字元隨機密碼並寫入 .env。"
+    muted "  POSTGRES_PASSWORD=${input}"
+  fi
+  printf -v "$dest" '%s' "$input"
+  printf '\n'
+}
+
 validate_ngrok_domain() {
   local d="$1"
   local lower
@@ -325,7 +368,7 @@ STEP3_PREFIX=""
 case "$SCENARIO" in
   A|B)
     next_step3
-    read_required "${STEP3_PREFIX}請提供本機 Postgres 資料庫密碼（POSTGRES_PASSWORD）" "此密碼僅供本機容器使用，請勿填寫雲端資料庫帳密：" POSTGRES_PASSWORD
+    read_postgres_password POSTGRES_PASSWORD
     ;;
 esac
 
@@ -334,9 +377,9 @@ case "$SCENARIO" in
     next_step3
     read_required "${STEP3_PREFIX}請提供 Google Cloud 專案 ID（GCP_PROJECT）：" "" GCP_PROJECT
     next_step3
-    read_required "${STEP3_PREFIX}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1：" "" GCP_REGION
+    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1：" "（直接按 Enter 採用預設值 asia-east1）：" "asia-east1" GCP_REGION
     next_step3
-    read_required "${STEP3_PREFIX}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）：" "" GCP_RUN_SERVICE
+    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）：" "（直接按 Enter 採用預設值 n8n）：" "n8n" GCP_RUN_SERVICE
     ;;
 esac
 

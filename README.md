@@ -30,7 +30,7 @@
 | B | 先 `pull-secrets`，啟動後再 `sync-from-cloud` 複製雲端資料 |
 | C | 先 `pull-secrets` 寫入密鑰與遠端資料庫連線，**不**跑資料同步 |
 
-之後只要再開一次，執行同一支腳本即可。若映像已在本機，只會啟動 container，不會重新下載映像。場景 B 不會重複覆蓋本機資料；若要再同步，請自行執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。
+之後只要再開一次，執行同一支腳本即可。若映像已在本機，只會啟動 container，不會重新下載映像。場景 B 不會重複覆蓋本機資料；若要再同步，請自行執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。要關閉容器但不刪資料，請執行 `./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）。
 
 拆掉本機環境（`uninstall-local-n8n`）後再啟動，會視為首次，密鑰與場景 B 資料會再拉一次。
 
@@ -216,6 +216,9 @@ https://<你的 ngrok 網域>
 # 建議：同一支啟動精靈（已啟動過則不下載映像）
 ./start-n8n.sh              # Windows：.\start-n8n.cmd
 
+# 關閉容器（保留資料、映像與 .env）
+./shutdown-n8n.sh           # Windows：.\shutdown-n8n.cmd
+
 # 場景 A / B：本機編輯器
 docker compose up -d postgres n8n
 
@@ -226,13 +229,13 @@ docker compose --profile tunnel up -d
 docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel up -d
 
 # 關閉（A / B）
-docker compose --profile tunnel down
+docker compose --profile tunnel stop
 
 # 關閉（C）
-docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel down
+docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel stop
 ```
 
-從 A / B 切到 C，或反過來，都先 `down` 再依新場景 `up`。
+從 A / B 切到 C，或反過來，都先 `shutdown-n8n`（或 `docker compose ... stop`）再依新場景啟動。
 
 要拆掉這個專案的 container、映像，並清空 `data/`、`exports/` 與 `.env`（可用 `--keep-env` 保留設定檔）：
 

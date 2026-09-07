@@ -139,6 +139,39 @@ function Write-Marker([string]$Scenario) {
     [System.IO.File]::WriteAllText($MarkerFile, $text, $Utf8NoBom)
 }
 
+function Write-ReadyBanner {
+    $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
+    $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
+    if ([string]::IsNullOrWhiteSpace($enableNgrok)) {
+        $enableNgrok = 'true'
+    }
+    $internalUrl = 'http://localhost:5678'
+    $externalUrl = ''
+    if ($enableNgrok -eq 'true' -and -not [string]::IsNullOrWhiteSpace($ngrokDomain) -and $ngrokDomain -ne 'YOUR_NGROK_DOMAIN') {
+        $externalUrl = "https://$ngrokDomain"
+    }
+
+    Write-Host ''
+    Write-Title '════════════════════════════════════════════════════════════'
+    Write-Title '  n8n 已啟動'
+    Write-Title '════════════════════════════════════════════════════════════'
+    Write-Host ''
+    Write-Host '  內部網址      ' -ForegroundColor White -NoNewline
+    Write-Host $internalUrl -ForegroundColor Cyan
+    if ($externalUrl) {
+        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
+        Write-Host $externalUrl -ForegroundColor Cyan
+        Write-Host '  ngrok 檢查頁  ' -ForegroundColor White -NoNewline
+        Write-Host 'http://127.0.0.1:4040' -ForegroundColor Cyan
+    }
+    else {
+        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
+        Write-Host '未啟用 ngrok，無法使用對外 webhook' -ForegroundColor Yellow
+    }
+    Write-Host ''
+    Write-OkLine '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。'
+}
+
 function Get-MarkerScenario {
     if (-not (Test-Path -LiteralPath $MarkerFile)) {
         return ''
@@ -263,31 +296,40 @@ else {
     if ($rc -ne 0) { exit $rc }
 }
 
-Write-Section '【步驟 5】雲端資料'
+$step5Summary = ''
 switch ($scenario) {
     'B' {
         if ($needSync) {
+            Write-Section '【步驟 5】雲端資料'
             Write-Body '場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。'
             $rc = Invoke-ProjectScript 'sync-from-cloud.ps1'
             if ($rc -ne 0) { exit $rc }
+            $step5Summary = '場景 B 已將 Cloud Run 資料複製到本機。'
         }
         else {
-            Write-OkLine '場景 B 資料先前已同步，略過 sync-from-cloud。'
-            Write-Muted '  若要再同步一次，請執行 .\scripts\sync-from-cloud.cmd'
+            $step5Summary = '場景 B 資料先前已同步，無需再次複製雲端資料。'
         }
     }
     'C' {
-        Write-OkLine '場景 C 直連遠端資料庫，不執行 sync-from-cloud。'
+        $step5Summary = '場景 C 直連遠端資料庫，無需同步雲端資料。'
     }
     default {
-        Write-OkLine '場景 A 從空白環境開始，無需同步雲端資料。'
+        $step5Summary = '場景 A 從空白環境開始，無需同步雲端資料。'
     }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($scenario)) {
-    Write-Marker $scenario
+    try {
+        Write-Marker $scenario
+    }
+    catch {
+        Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)"
+    }
 }
 
+Write-ReadyBanner
+Write-Section '【步驟 5】雲端資料'
+Write-Body $step5Summary
 Write-Host ''
 Write-OkLine '────────────────────────────────────────────────────────────'
 Write-OkLine '  啟動流程完成。'

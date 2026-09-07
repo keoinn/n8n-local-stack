@@ -132,6 +132,36 @@ write_marker() {
   printf 'N8N_SCENARIO=%s\nBOOTSTRAPPED_AT=%s\n' "$1" "$(date +%Y-%m-%dT%H:%M:%S)" > "${MARKER_FILE}"
 }
 
+print_ready_banner() {
+  local enable_ngrok domain internal_url external_url
+  enable_ngrok="$(get_env_value ENABLE_NGROK)"
+  domain="$(get_env_value NGROK_DOMAIN)"
+  enable_ngrok="$(printf '%s' "$enable_ngrok" | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "$enable_ngrok" ]]; then
+    enable_ngrok="true"
+  fi
+  internal_url="http://localhost:5678"
+  external_url=""
+  if [[ "$enable_ngrok" = "true" && -n "$domain" && "$domain" != "YOUR_NGROK_DOMAIN" ]]; then
+    external_url="https://${domain}"
+  fi
+
+  printf '\n'
+  title "════════════════════════════════════════════════════════════"
+  title "  n8n 已啟動"
+  title "════════════════════════════════════════════════════════════"
+  printf '\n'
+  printf '%b\n' "  ${C_WHITE}內部網址${C_RESET}      ${C_CYAN}${internal_url}${C_RESET}"
+  if [[ -n "$external_url" ]]; then
+    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_CYAN}${external_url}${C_RESET}"
+    printf '%b\n' "  ${C_WHITE}ngrok 檢查頁${C_RESET}  ${C_CYAN}http://127.0.0.1:4040${C_RESET}"
+  else
+    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_YELLOW}未啟用 ngrok，無法使用對外 webhook${C_RESET}"
+  fi
+  printf '\n'
+  success "請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+}
+
 marker_scenario() {
   if [[ ! -f "$MARKER_FILE" ]]; then
     return 0
@@ -251,29 +281,34 @@ else
   run_script scripts/start-local-n8n.sh || exit 1
 fi
 
-section "【步驟 5】雲端資料"
+STEP5_SUMMARY=""
 case "$SCENARIO" in
   B)
     if [[ "$NEED_SYNC" -eq 1 ]]; then
+      section "【步驟 5】雲端資料"
       body "場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。"
       run_script scripts/sync-from-cloud.sh || exit 1
+      STEP5_SUMMARY="場景 B 已將 Cloud Run 資料複製到本機。"
     else
-      success "場景 B 資料先前已同步，略過 sync-from-cloud。"
-      muted "  若要再同步一次，請執行 ./scripts/sync-from-cloud.sh"
+      STEP5_SUMMARY="場景 B 資料先前已同步，無需再次複製雲端資料。"
     fi
     ;;
   C)
-    success "場景 C 直連遠端資料庫，不執行 sync-from-cloud。"
+    STEP5_SUMMARY="場景 C 直連遠端資料庫，無需同步雲端資料。"
     ;;
   *)
-    success "場景 A 從空白環境開始，無需同步雲端資料。"
+    STEP5_SUMMARY="場景 A 從空白環境開始，無需同步雲端資料。"
     ;;
 esac
 
 if [[ -n "$SCENARIO" ]]; then
-  write_marker "$SCENARIO"
+  write_marker "$SCENARIO" || warn "無法寫入啟動紀錄。"
 fi
 
+print_ready_banner
+printf '\n'
+section "【步驟 5】雲端資料"
+body "${STEP5_SUMMARY}"
 printf '\n'
 success "────────────────────────────────────────────────────────────"
 success "  啟動流程完成。"

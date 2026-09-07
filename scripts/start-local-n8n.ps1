@@ -116,28 +116,32 @@ if ($LASTEXITCODE -ne 0) {
     Exit-N8nScript $LASTEXITCODE
 }
 
-$internalUrl = 'http://localhost:5678'
-$externalUrl = ''
-if ($enableNgrok -eq 'true' -and -not [string]::IsNullOrWhiteSpace($ngrokDomain) -and $ngrokDomain -ne 'YOUR_NGROK_DOMAIN') {
-    $externalUrl = "https://$ngrokDomain"
+if ($env:N8N_ORCHESTRATED -ne '1') {
+    $internalUrl = 'http://localhost:5678'
+    $externalUrl = ''
+    if ($enableNgrok -eq 'true' -and -not [string]::IsNullOrWhiteSpace($ngrokDomain) -and $ngrokDomain -ne 'YOUR_NGROK_DOMAIN') {
+        $externalUrl = "https://$ngrokDomain"
+    }
+
+    Write-Host ''
+    Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
+    Write-Host '  n8n 已啟動' -ForegroundColor Cyan
+    Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host '  內部網址      ' -ForegroundColor White -NoNewline
+    Write-Host $internalUrl -ForegroundColor Cyan
+    if ($externalUrl) {
+        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
+        Write-Host $externalUrl -ForegroundColor Cyan
+        Write-Host '  ngrok 檢查頁  ' -ForegroundColor White -NoNewline
+        Write-Host 'http://127.0.0.1:4040' -ForegroundColor Cyan
+    }
+    else {
+        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
+        Write-Host '未啟用 ngrok，無法使用對外 webhook' -ForegroundColor Yellow
+    }
+    Write-Host ''
+    Write-Host '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
 }
 
-Write-Host ''
-Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
-Write-Host '  n8n 已啟動' -ForegroundColor Cyan
-Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
-Write-Host ''
-Write-Host '  內部網址      ' -ForegroundColor White -NoNewline
-Write-Host $internalUrl -ForegroundColor Cyan
-if ($externalUrl) {
-    Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-    Write-Host $externalUrl -ForegroundColor Cyan
-    Write-Host '  ngrok 檢查頁  ' -ForegroundColor White -NoNewline
-    Write-Host 'http://127.0.0.1:4040' -ForegroundColor Cyan
-}
-else {
-    Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-    Write-Host '未啟用 ngrok，無法使用對外 webhook' -ForegroundColor Yellow
-}
-Write-Host ''
-Write-Host '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
+Exit-N8nScript 0

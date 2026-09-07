@@ -144,23 +144,25 @@ muted "  docker ${compose_args[*]}"
 printf '\n'
 docker "${compose_args[@]}"
 
-INTERNAL_URL="http://localhost:5678"
-EXTERNAL_URL=""
-if [[ "$ENABLE_NGROK" = "true" && -n "$NGROK_DOMAIN" && "$NGROK_DOMAIN" != "YOUR_NGROK_DOMAIN" ]]; then
-  EXTERNAL_URL="https://${NGROK_DOMAIN}"
-fi
+if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
+  INTERNAL_URL="http://localhost:5678"
+  EXTERNAL_URL=""
+  if [[ "$ENABLE_NGROK" = "true" && -n "$NGROK_DOMAIN" && "$NGROK_DOMAIN" != "YOUR_NGROK_DOMAIN" ]]; then
+    EXTERNAL_URL="https://${NGROK_DOMAIN}"
+  fi
 
-printf '\n'
-title "════════════════════════════════════════════════════════════"
-title "  n8n 已啟動"
-title "════════════════════════════════════════════════════════════"
-printf '\n'
-printf '%b\n' "  ${C_WHITE}內部網址${C_RESET}      ${C_CYAN}${INTERNAL_URL}${C_RESET}"
-if [[ -n "$EXTERNAL_URL" ]]; then
-  printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_CYAN}${EXTERNAL_URL}${C_RESET}"
-  printf '%b\n' "  ${C_WHITE}ngrok 檢查頁${C_RESET}  ${C_CYAN}http://127.0.0.1:4040${C_RESET}"
-else
-  printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_YELLOW}未啟用 ngrok，無法使用對外 webhook${C_RESET}"
+  printf '\n'
+  title "════════════════════════════════════════════════════════════"
+  title "  n8n 已啟動"
+  title "════════════════════════════════════════════════════════════"
+  printf '\n'
+  printf '%b\n' "  ${C_WHITE}內部網址${C_RESET}      ${C_CYAN}${INTERNAL_URL}${C_RESET}"
+  if [[ -n "$EXTERNAL_URL" ]]; then
+    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_CYAN}${EXTERNAL_URL}${C_RESET}"
+    printf '%b\n' "  ${C_WHITE}ngrok 檢查頁${C_RESET}  ${C_CYAN}http://127.0.0.1:4040${C_RESET}"
+  else
+    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_YELLOW}未啟用 ngrok，無法使用對外 webhook${C_RESET}"
+  fi
+  printf '\n'
+  success "請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
 fi
-printf '\n'
-success "請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"

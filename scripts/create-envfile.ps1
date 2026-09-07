@@ -116,6 +116,38 @@ function Read-RequiredValue {
     }
 }
 
+function Read-DefaultValue {
+    param(
+        [string]$Line1,
+        [string]$Line2,
+        [string]$Default
+    )
+    $value = Get-Sanitized (Read-Visible $Line1 $Line2)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        $value = $Default
+        Write-Ok "已採用預設值 $value。"
+    }
+    Write-Host ''
+    return $value
+}
+
+function New-AlnumPassword {
+    $chars = [char[]]((48..57) + (65..90) + (97..122))
+    return -join (1..10 | ForEach-Object { $chars | Get-Random })
+}
+
+function Read-PostgresPassword {
+    param([string]$Line1, [string]$Line2)
+    $value = Get-Sanitized (Read-Visible $Line1 $Line2)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        $value = New-AlnumPassword
+        Write-Ok '已產生 10 字元隨機密碼並寫入 .env。'
+        Write-Muted "  POSTGRES_PASSWORD=$value"
+    }
+    Write-Host ''
+    return $value
+}
+
 function Test-NgrokDomain {
     param(
         [string]$Domain,
@@ -276,16 +308,16 @@ $script:Step3 = 0
 
 if ($Scenario -in @('A', 'B')) {
     $prefix = Get-Step3Prefix
-    $PostgresPassword = Read-RequiredValue -Line1 "${prefix}請提供本機 Postgres 資料庫密碼（POSTGRES_PASSWORD）" -Line2 '此密碼僅供本機容器使用，請勿填寫雲端資料庫帳密：'
+    $PostgresPassword = Read-PostgresPassword -Line1 "${prefix}請提供本機 Postgres 資料庫密碼（POSTGRES_PASSWORD）" -Line2 '此密碼僅供本機容器使用，請勿填寫雲端資料庫帳密（直接按 Enter 產生 10 字元隨機密碼）：'
 }
 
 if ($Scenario -in @('B', 'C')) {
     $prefix = Get-Step3Prefix
     $GcpProject = Read-RequiredValue -Line1 "${prefix}請提供 Google Cloud 專案 ID（GCP_PROJECT）："
     $prefix = Get-Step3Prefix
-    $GcpRegion = Read-RequiredValue -Line1 "${prefix}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1："
+    $GcpRegion = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1：" -Line2 '（直接按 Enter 採用預設值 asia-east1）：' -Default 'asia-east1'
     $prefix = Get-Step3Prefix
-    $GcpRunService = Read-RequiredValue -Line1 "${prefix}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）："
+    $GcpRunService = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）：" -Line2 '（直接按 Enter 採用預設值 n8n）：' -Default 'n8n'
 }
 
 if ($EnableNgrok -eq 'true') {
