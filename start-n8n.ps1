@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $Root = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $EnvFile = Join-Path $Root '.env'
