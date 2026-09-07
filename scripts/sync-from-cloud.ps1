@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -24,12 +25,12 @@ foreach ($arg in $args) {
         '--keep-exports' { $KeepExports = $true }
         { $_ -in @('-h', '--help') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
@@ -64,7 +65,7 @@ function Import-DotEnv([string]$Path) {
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     Write-Err "找不到 $EnvFile，請先複製 .env.example 並執行 .\scripts\pull-secrets.cmd"
-    exit 1
+    Exit-N8nScript 1
 }
 
 Import-DotEnv $EnvFile
@@ -86,13 +87,13 @@ foreach ($varName in $requiredVars) {
     $value = [Environment]::GetEnvironmentVariable($varName)
     if ([string]::IsNullOrWhiteSpace($value)) {
         Write-Err "$varName 是空的。請先執行 .\scripts\pull-secrets.cmd"
-        exit 1
+        Exit-N8nScript 1
     }
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
-    exit 1
+    Exit-N8nScript 1
 }
 
 New-Item -ItemType Directory -Force -Path `
@@ -120,7 +121,7 @@ function Wait-ForService {
         if ($elapsed -ge $Timeout) {
             Write-Err "$Service 在 $Timeout 秒內沒有變成 healthy。"
             docker compose logs --tail=80 $Service 2>&1 | ForEach-Object { Write-Err "$_" }
-            exit 1
+            Exit-N8nScript 1
         }
         Start-Sleep -Seconds 3
         $elapsed += 3
@@ -130,7 +131,7 @@ function Wait-ForService {
 function Invoke-Docker([object[]]$DockerArgs) {
     & docker @DockerArgs
     if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+        Exit-N8nScript $LASTEXITCODE
     }
 }
 

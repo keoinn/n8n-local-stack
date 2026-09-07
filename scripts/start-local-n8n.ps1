@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -26,12 +27,12 @@ foreach ($arg in $args) {
         '--no-pull' { $NoPull = $true }
         { $_ -in @('-h', '--help', '/?') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
@@ -65,12 +66,12 @@ function Get-EnvValue([string]$Key) {
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
-    exit 1
+    Exit-N8nScript 1
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     Write-Err "找不到 $EnvFile。請先執行 .\scripts\create-envfile.ps1"
-    exit 1
+    Exit-N8nScript 1
 }
 
 Set-Location -LiteralPath $Root
@@ -112,7 +113,7 @@ Write-Host ''
 
 & docker @composeArgs
 if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+    Exit-N8nScript $LASTEXITCODE
 }
 
 $internalUrl = 'http://localhost:5678'

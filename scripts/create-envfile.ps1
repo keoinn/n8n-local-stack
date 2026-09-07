@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -30,12 +31,12 @@ foreach ($arg in $args) {
     switch ($arg) {
         { $_ -in @('-h', '--help', '/?') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
@@ -138,7 +139,7 @@ function Test-NgrokDomain {
 
 if (-not (Test-Path -LiteralPath $ExampleFile)) {
     Write-Err "找不到 $ExampleFile，無法建立 .env。"
-    exit 1
+    Exit-N8nScript 1
 }
 
 Write-Host ''

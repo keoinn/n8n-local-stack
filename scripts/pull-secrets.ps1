@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -81,14 +82,14 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Root 'data\n8n'), (Join-Pa
 
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 gcloud，請先安裝 Google Cloud SDK 並登入。'
-    exit 1
+    Exit-N8nScript 1
 }
 
 Write-Host '從 Secret Manager 讀取 n8n-encryption-key ...'
 $encryptionKey = ((& gcloud secrets versions access latest --secret=n8n-encryption-key --project=$gcpProject) | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($encryptionKey)) {
     Write-Err 'n8n-encryption-key 是空的。'
-    exit 1
+    Exit-N8nScript 1
 }
 Update-EnvVar 'N8N_ENCRYPTION_KEY' $encryptionKey
 Write-Host '已寫入 N8N_ENCRYPTION_KEY'
@@ -97,7 +98,7 @@ Write-Host '從 Secret Manager 讀取 supabase-db-password ...'
 $dbPassword = ((& gcloud secrets versions access latest --secret=supabase-db-password --project=$gcpProject) | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($dbPassword)) {
     Write-Err 'supabase-db-password 是空的。'
-    exit 1
+    Exit-N8nScript 1
 }
 Update-EnvVar 'CLOUD_DB_POSTGRESDB_PASSWORD' $dbPassword
 Write-Host '已寫入 CLOUD_DB_POSTGRESDB_PASSWORD'

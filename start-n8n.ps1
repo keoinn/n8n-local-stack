@@ -108,22 +108,28 @@ function Invoke-ProjectScript {
     }
     Write-Host ''
 
-    # 子腳本若用 `exit`，在 powershell -File 裡用 `&` 呼叫會結束整個行程。
-    # 改開子行程，設定精靈結束後才能繼續檢查環境並啟動。
-    $shell = (Get-Process -Id $PID).Path
-    $childArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $path)
-    if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
-        $childArgs += $ScriptArgs
-    }
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    & $shell @childArgs
-    $rc = $LASTEXITCODE
-    $ErrorActionPreference = $prev
-    if ($null -eq $rc) {
+    # 必須在同一個主控台用 `&` 呼叫，設定精靈的提示才會顯示。
+    # 子腳本的 Exit-N8nScript 在 N8N_ORCHESTRATED=1 時會 throw，而不是 exit。
+    try {
+        if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
+            & $path @ScriptArgs
+        }
+        else {
+            & $path
+        }
+        if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
+            return [int]$LASTEXITCODE
+        }
         return 0
     }
-    return [int]$rc
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -match '^n8n-script-exit:(\d+)$') {
+            return [int]$Matches[1]
+        }
+        Write-Err $msg
+        return 1
+    }
 }
 
 function Write-Marker([string]$Scenario) {

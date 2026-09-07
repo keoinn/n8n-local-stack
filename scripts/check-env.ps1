@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Continue'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
@@ -31,12 +32,12 @@ foreach ($arg in $args) {
     switch ($arg) {
         { $_ -in @('-h', '--help', '/?') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
@@ -418,6 +419,6 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
 }
 
 if ($script:Fail -gt 0) {
-    exit 1
+    Exit-N8nScript 1
 }
-exit 0
+Exit-N8nScript 0
