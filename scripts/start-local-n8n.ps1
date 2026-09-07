@@ -143,5 +143,3 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
     Write-Host ''
     Write-Host '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
 }
-
-Exit-N8nScript 0

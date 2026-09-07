@@ -87,6 +87,9 @@ function Import-DotEnv([string]$Path) {
                 $value = $value.Substring(0, $hash).TrimEnd()
             }
         }
+        if ($key -eq 'N8N_ORCHESTRATED') {
+            return
+        }
         Set-Item -Path "Env:$key" -Value $value
     }
 }
@@ -244,4 +247,3 @@ if (-not $KeepExports) {
 
 Write-Host ''
 Write-Host '雲端資料同步完成。'
-Exit-N8nScript 0

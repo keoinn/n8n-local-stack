@@ -1,6 +1,6 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-$Root = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+$Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
 $MarkerFile = Join-Path $Root 'data\.local-bootstrapped'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
@@ -22,7 +22,6 @@ function Show-Usage {
 之後再執行本腳本，若映像已在本機，只會啟動既有 container，不會重新下載映像。
 
 用法：
-  .\start-n8n.ps1
   .\start-n8n.cmd
 '@ | Write-Host
 }
@@ -122,11 +121,12 @@ function Invoke-ProjectScript {
         return 0
     }
     catch {
-        $msg = $_.Exception.Message
-        if ($msg -match '^n8n-script-exit:(\d+)$') {
+        $text = @($_.Exception.Message, [string]$_)
+        $joined = ($text -join "`n")
+        if ($joined -match 'n8n-script-exit:(\d+)') {
             return [int]$Matches[1]
         }
-        Write-Err $msg
+        Write-Err $_.Exception.Message
         return 1
     }
 }
@@ -136,7 +136,9 @@ function Write-Marker([string]$Scenario) {
     New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
     $stamp = Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'
     $text = "N8N_SCENARIO=$Scenario`nBOOTSTRAPPED_AT=$stamp`n"
-    [System.IO.File]::WriteAllText($MarkerFile, $text, $Utf8NoBom)
+    foreach ($target in @($MarkerFile, (Join-Path $Root '.n8n-local-bootstrapped'))) {
+        [System.IO.File]::WriteAllText($target, $text, $Utf8NoBom)
+    }
 }
 
 function Write-ReadyBanner {
@@ -173,17 +175,24 @@ function Write-ReadyBanner {
 }
 
 function Get-MarkerScenario {
-    if (-not (Test-Path -LiteralPath $MarkerFile)) {
-        return ''
-    }
-    $lines = [System.IO.File]::ReadAllLines($MarkerFile, $Utf8NoBom)
-    $raw = ''
-    foreach ($line in $lines) {
-        if ($line.StartsWith('N8N_SCENARIO=')) {
-            $raw = $line.Substring('N8N_SCENARIO='.Length)
+    foreach ($candidate in @($MarkerFile, (Join-Path $Root '.n8n-local-bootstrapped'))) {
+        if (-not (Test-Path -LiteralPath $candidate)) {
+            continue
+        }
+        $lines = [System.IO.File]::ReadAllLines($candidate, $Utf8NoBom)
+        $raw = ''
+        foreach ($line in $lines) {
+            $clean = $line.TrimStart([char]0xFEFF)
+            if ($clean.StartsWith('N8N_SCENARIO=')) {
+                $raw = $clean.Substring('N8N_SCENARIO='.Length)
+            }
+        }
+        $raw = Get-Sanitized $raw
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            return $raw
         }
     }
-    return (Get-Sanitized $raw)
+    return ''
 }
 
 function Test-ProjectContainers {
@@ -203,6 +212,7 @@ function Test-DockerImage([string]$Image) {
     return $ok
 }
 
+$global:N8N_ORCHESTRATED = $true
 $env:N8N_ORCHESTRATED = '1'
 Set-Location -LiteralPath $Root
 
@@ -305,6 +315,7 @@ switch ($scenario) {
             $rc = Invoke-ProjectScript 'sync-from-cloud.ps1'
             if ($rc -ne 0) { exit $rc }
             $step5Summary = '場景 B 已將 Cloud Run 資料複製到本機。'
+            try { Write-Marker $scenario } catch { Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)" }
         }
         else {
             $step5Summary = '場景 B 資料先前已同步，無需再次複製雲端資料。'

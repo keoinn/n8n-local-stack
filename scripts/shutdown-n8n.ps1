@@ -1,6 +1,6 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-$Root = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+$Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
@@ -16,7 +16,6 @@ function Show-Usage {
 若要拆掉環境並清空資料，請改用 .\scripts\uninstall-local-n8n.cmd。
 
 用法：
-  .\shutdown-n8n.ps1
   .\shutdown-n8n.cmd
 '@ | Write-Host
 }

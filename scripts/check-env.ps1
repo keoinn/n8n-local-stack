@@ -421,4 +421,3 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
 if ($script:Fail -gt 0) {
     Exit-N8nScript 1
 }
-Exit-N8nScript 0

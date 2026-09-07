@@ -129,7 +129,10 @@ run_script() {
 
 write_marker() {
   mkdir -p "${ROOT}/data"
-  printf 'N8N_SCENARIO=%s\nBOOTSTRAPPED_AT=%s\n' "$1" "$(date +%Y-%m-%dT%H:%M:%S)" > "${MARKER_FILE}"
+  local text
+  text="$(printf 'N8N_SCENARIO=%s\nBOOTSTRAPPED_AT=%s\n' "$1" "$(date +%Y-%m-%dT%H:%M:%S)")"
+  printf '%s' "$text" > "${MARKER_FILE}"
+  printf '%s' "$text" > "${ROOT}/.n8n-local-bootstrapped"
 }
 
 print_ready_banner() {
@@ -163,13 +166,20 @@ print_ready_banner() {
 }
 
 marker_scenario() {
-  if [[ ! -f "$MARKER_FILE" ]]; then
-    return 0
-  fi
-  local raw
-  raw="$(grep -E '^N8N_SCENARIO=' "$MARKER_FILE" | tail -n 1 || true)"
-  raw="${raw#N8N_SCENARIO=}"
-  sanitize_env_value "$raw"
+  local file raw
+  for file in "$MARKER_FILE" "${ROOT}/.n8n-local-bootstrapped"; do
+    if [[ ! -f "$file" ]]; then
+      continue
+    fi
+    raw="$(grep -E '^N8N_SCENARIO=' "$file" | tail -n 1 || true)"
+    raw="${raw#N8N_SCENARIO=}"
+    raw="$(sanitize_env_value "$raw")"
+    if [[ -n "$raw" ]]; then
+      printf '%s' "$raw"
+      return 0
+    fi
+  done
+  return 0
 }
 
 project_has_containers() {
@@ -289,6 +299,7 @@ case "$SCENARIO" in
       body "場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。"
       run_script scripts/sync-from-cloud.sh || exit 1
       STEP5_SUMMARY="場景 B 已將 Cloud Run 資料複製到本機。"
+      write_marker "$SCENARIO" || warn "無法寫入啟動紀錄。"
     else
       STEP5_SUMMARY="場景 B 資料先前已同步，無需再次複製雲端資料。"
     fi

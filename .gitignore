@@ -1,11 +1,12 @@
 # -----------------------------------------------------------------------------
-# 可提交：README.md、compose*.yml、scripts/、start-n8n.*、.env.example、本檔
+# 可提交：README.md、compose*.yml、scripts/、根目錄 start-n8n.* / shutdown-n8n.*、.env.example、本檔
 # -----------------------------------------------------------------------------
 
 # 密鑰與本機設定（範本 .env.example 要進 git）
 .env
 .env.*
 !.env.example
+.n8n-local-bootstrapped
 
 # 本機 bind mount（n8n 設定、Postgres 資料檔）；保留目錄佔位
 data/*

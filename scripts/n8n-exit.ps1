@@ -3,7 +3,8 @@
 function Exit-N8nScript {
     param([int]$Code = 0)
     $global:LASTEXITCODE = $Code
-    if ($env:N8N_ORCHESTRATED -eq '1') {
+    $orchestrated = ($env:N8N_ORCHESTRATED -eq '1') -or ($true -eq $global:N8N_ORCHESTRATED)
+    if ($orchestrated) {
         throw "n8n-script-exit:$Code"
     }
     exit $Code

@@ -20,9 +20,11 @@
 # macOS / Linux
 ./start-n8n.sh
 
-# Windows
+# Windows（請用 .cmd，不要直接跑 .ps1）
 .\start-n8n.cmd
 ```
+
+Windows 的 `.cmd` 是入口，實際邏輯在 `scripts/*.ps1`。macOS / Linux 用根目錄的 `.sh`。
 
 | 場景 | 精靈會多做的事 |
 | --- | --- |
@@ -42,7 +44,7 @@
 
 要用外網 webhook（Google OAuth、對外 callback）時，再準備 [ngrok](https://ngrok.com/) 的 Auth Token 與固定網域。`NGROK_DOMAIN` 只填網域，不要加 `https://`。compose 會組成 `https://<NGROK_DOMAIN>/` 當 webhook。只在本機編輯、不對外開洞時，可不上 ngrok。
 
-場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。`.sh` 只給 macOS / Linux；Windows 用 `.\scripts\*.cmd` 或 `.\scripts\*.ps1`。
+場景 B、C 還要本機的 `gcloud`（不是瀏覽器裡的 Cloud Shell），並能讀 GCP 專案的 Secret Manager 與 Cloud Run。`.sh` 只給 macOS / Linux；Windows 請用對應的 `.cmd`（啟動／關閉在專案根目錄，其餘在 `scripts/`）。不要直接執行 `.ps1`。
 
 ```bash
 # Windows
@@ -211,6 +213,8 @@ https://<你的 ngrok 網域>
 ---
 
 ## 日常開關
+
+Windows 請用根目錄的 `.cmd`；macOS / Linux 用根目錄的 `.sh`。PowerShell 實作放在 `scripts/`，不必手動執行。
 
 ```bash
 # 建議：同一支啟動精靈（已啟動過則不下載映像）
