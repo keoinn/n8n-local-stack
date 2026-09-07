@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# 可提交：README.md、compose*.yml、scripts/、根目錄 start-n8n.* / shutdown-n8n.*、.env.example、本檔
+# 可提交：README.md、compose*.yml、scripts/、根目錄 start-n8n.* / shutdown-n8n.* / uninstall-local-n8n.*、.env.example、本檔
 # -----------------------------------------------------------------------------
 
 # 密鑰與本機設定（範本 .env.example 要進 git）

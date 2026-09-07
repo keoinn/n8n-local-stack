@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+# 拆掉本機 n8n 環境（container、映像，預設連 data/ 與 .env）。相容 macOS 內建 Bash 3.2。
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "${ROOT}"
 
 KEEP_DATA=0
@@ -15,10 +16,10 @@ usage() {
 不會刪各目錄的 .gitkeep。
 
 用法：
-  ./scripts/uninstall-local-n8n.sh
-  ./scripts/uninstall-local-n8n.sh --keep-data     只拆 Docker，保留 data/ 與 exports/
-  ./scripts/uninstall-local-n8n.sh --keep-env      保留 .env
-  ./scripts/uninstall-local-n8n.sh --keep-images   不刪 n8n / postgres / ngrok 映像
+  ./uninstall-local-n8n.sh
+  ./uninstall-local-n8n.sh --keep-data     只拆 Docker，保留 data/ 與 exports/
+  ./uninstall-local-n8n.sh --keep-env      保留 .env
+  ./uninstall-local-n8n.sh --keep-images   不刪 n8n / postgres / ngrok 映像
 EOF
 }
 
