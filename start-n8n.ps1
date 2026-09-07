@@ -236,14 +236,12 @@ $noPull = ((Test-DockerImage $n8nImage) -and ($bootstrapped -or (Test-ProjectCon
 Write-Section '【步驟 3】雲端密鑰'
 switch ($scenario) {
     { $_ -in @('B', 'C') } {
-        if ($needSecrets) {
-            Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
-            $rc = Invoke-ProjectScript 'pull-secrets.ps1'
-            if ($rc -ne 0) { exit $rc }
-        }
-        else {
-            Write-OkLine '密鑰已在 .env，略過 pull-secrets。'
-            Write-Muted '  若要重新拉取，請執行 .\scripts\pull-secrets.cmd'
+        Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
+        $rc = Invoke-ProjectScript 'pull-secrets.ps1'
+        if ($rc -ne 0) { exit $rc }
+        if (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) {
+            Write-Err 'pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。'
+            exit 1
         }
     }
     default {

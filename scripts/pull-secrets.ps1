@@ -62,6 +62,7 @@ function Update-EnvVar([string]$Key, [string]$Value) {
         $out.Add($line)
     }
     [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
+    Set-Item -Path "Env:$Key" -Value $Value
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {

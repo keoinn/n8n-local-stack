@@ -234,7 +234,7 @@ docker compose -f compose.yml -f compose.remote-supabase.yml --profile tunnel do
 
 從 A / B 切到 C，或反過來，都先 `down` 再依新場景 `up`。
 
-要拆掉這個專案的 container、映像，並清空 `data/`、`exports/`（不會刪 `.env`）：
+要拆掉這個專案的 container、映像，並清空 `data/`、`exports/` 與 `.env`（可用 `--keep-env` 保留設定檔）：
 
 ```bash
 # macOS / Linux

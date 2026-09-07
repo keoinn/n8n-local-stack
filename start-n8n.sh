@@ -230,12 +230,11 @@ fi
 section "【步驟 3】雲端密鑰"
 case "$SCENARIO" in
   B|C)
-    if [[ "$NEED_SECRETS" -eq 1 ]]; then
-      body "場景 ${SCENARIO} 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
-      run_script scripts/pull-secrets.sh || exit 1
-    else
-      success "密鑰已在 .env，略過 pull-secrets。"
-      muted "  若要重新拉取，請執行 ./scripts/pull-secrets.sh"
+    body "場景 ${SCENARIO} 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
+    run_script scripts/pull-secrets.sh || exit 1
+    if is_placeholder "$(get_env_value N8N_ENCRYPTION_KEY)"; then
+      error "pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。"
+      exit 1
     fi
     ;;
   *)

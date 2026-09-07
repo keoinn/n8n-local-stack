@@ -6,16 +6,18 @@ cd "${ROOT}"
 
 KEEP_DATA=0
 KEEP_IMAGES=0
+KEEP_ENV=0
 
 usage() {
   cat <<'EOF'
 移除本專案的 container、network、Docker volume，以及 compose 用到的 image。
-預設一併清空 bind mount 資料夾 data/、exports/（本機 n8n / Postgres 資料）。
-不會刪除 .env，也不會刪各目錄的 .gitkeep。
+預設一併清空 bind mount 資料夾 data/、exports/，並刪除 .env。
+不會刪各目錄的 .gitkeep。
 
 用法：
   ./scripts/uninstall-local-n8n.sh
   ./scripts/uninstall-local-n8n.sh --keep-data     只拆 Docker，保留 data/ 與 exports/
+  ./scripts/uninstall-local-n8n.sh --keep-env      保留 .env
   ./scripts/uninstall-local-n8n.sh --keep-images   不刪 n8n / postgres / ngrok 映像
 EOF
 }
@@ -23,6 +25,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keep-data) KEEP_DATA=1 ;;
+    --keep-env) KEEP_ENV=1 ;;
     --keep-images) KEEP_IMAGES=1 ;;
     -h|--help)
       usage
@@ -82,8 +85,17 @@ if [[ "${KEEP_DATA}" -eq 0 ]]; then
   chmod 777 "${ROOT}/data/n8n" "${ROOT}/exports" 2>/dev/null || true
 fi
 
+if [[ "${KEEP_ENV}" -eq 0 ]]; then
+  echo "刪除 .env ..."
+  rm -f "${ROOT}/.env"
+fi
+
 echo
-echo "完成。.env 有保留。"
+if [[ "${KEEP_ENV}" -eq 0 ]]; then
+  echo "完成。.env 已刪除。"
+else
+  echo "完成。.env 有保留。"
+fi
 if [[ "${KEEP_DATA}" -eq 0 ]]; then
   echo "本機 n8n / Postgres 資料已清空，重新測試請再 compose up。"
 fi

@@ -3,6 +3,7 @@
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $EnvFile = Join-Path $Root '.env'
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 $CredentialsOnly = $false
 $KeepExports = $false
 
@@ -35,8 +36,35 @@ foreach ($arg in $args) {
     }
 }
 
+function Get-EnvValue([string]$Key) {
+    if (-not (Test-Path -LiteralPath $EnvFile)) {
+        return ''
+    }
+    $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
+    $raw = ''
+    foreach ($line in $lines) {
+        if ($line.StartsWith("$Key=") -and -not $line.StartsWith('#')) {
+            $raw = $line.Substring($Key.Length + 1)
+        }
+    }
+    $raw = (($raw -replace '[\r\n]+', '')).Trim()
+    if ($raw.StartsWith("'") -and $raw.EndsWith("'") -and $raw.Length -ge 2) {
+        $raw = $raw.Substring(1, $raw.Length - 2).Replace("'\\''", "'")
+    }
+    elseif ($raw.StartsWith('"') -and $raw.EndsWith('"') -and $raw.Length -ge 2) {
+        $raw = $raw.Substring(1, $raw.Length - 2)
+    }
+    else {
+        $hash = $raw.IndexOf(' #')
+        if ($hash -ge 0) {
+            $raw = $raw.Substring(0, $hash).TrimEnd()
+        }
+    }
+    return $raw.Trim()
+}
+
 function Import-DotEnv([string]$Path) {
-    Get-Content -LiteralPath $Path | ForEach-Object {
+    [System.IO.File]::ReadAllLines($Path, $Utf8NoBom) | ForEach-Object {
         $line = $_.Trim()
         if ($line -eq '' -or $line.StartsWith('#')) {
             return
@@ -84,11 +112,12 @@ $requiredVars = @(
     'CLOUD_DB_POSTGRESDB_PASSWORD'
 )
 foreach ($varName in $requiredVars) {
-    $value = [Environment]::GetEnvironmentVariable($varName)
+    $value = Get-EnvValue $varName
     if ([string]::IsNullOrWhiteSpace($value)) {
         Write-Err "$varName 是空的。請先執行 .\scripts\pull-secrets.cmd"
         Exit-N8nScript 1
     }
+    Set-Item -Path "Env:$varName" -Value $value
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {

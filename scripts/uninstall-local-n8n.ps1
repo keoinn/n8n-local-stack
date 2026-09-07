@@ -5,6 +5,7 @@ Set-Location -LiteralPath $Root
 
 $KeepData = $false
 $KeepImages = $false
+$KeepEnv = $false
 
 function Write-Err([string]$Message) {
     [Console]::Error.WriteLine($Message)
@@ -13,12 +14,13 @@ function Write-Err([string]$Message) {
 function Show-Usage {
     @'
 移除本專案的 container、network、Docker volume，以及 compose 用到的 image。
-預設一併清空 bind mount 資料夾 data/、exports/（本機 n8n / Postgres 資料）。
-不會刪除 .env，也不會刪各目錄的 .gitkeep。
+預設一併清空 bind mount 資料夾 data/、exports/，並刪除 .env。
+不會刪各目錄的 .gitkeep。
 
 用法：
   .\scripts\uninstall-local-n8n.ps1
   .\scripts\uninstall-local-n8n.ps1 --keep-data     只拆 Docker，保留 data/ 與 exports/
+  .\scripts\uninstall-local-n8n.ps1 --keep-env      保留 .env
   .\scripts\uninstall-local-n8n.ps1 --keep-images   不刪 n8n / postgres / ngrok 映像
 '@ | Write-Host
 }
@@ -26,6 +28,7 @@ function Show-Usage {
 foreach ($arg in $args) {
     switch ($arg) {
         '--keep-data' { $KeepData = $true }
+        '--keep-env' { $KeepEnv = $true }
         '--keep-images' { $KeepImages = $true }
         { $_ -in @('-h', '--help') } {
             Show-Usage
@@ -97,8 +100,21 @@ if (-not $KeepData) {
     }
 }
 
+if (-not $KeepEnv) {
+    $envPath = Join-Path $Root '.env'
+    if (Test-Path -LiteralPath $envPath) {
+        Write-Host '刪除 .env ...'
+        Remove-Item -LiteralPath $envPath -Force
+    }
+}
+
 Write-Host ''
-Write-Host '完成。.env 有保留。'
+if ($KeepEnv) {
+    Write-Host '完成。.env 有保留。'
+}
+else {
+    Write-Host '完成。.env 已刪除。'
+}
 if (-not $KeepData) {
     Write-Host '本機 n8n / Postgres 資料已清空，重新測試請再 compose up。'
 }
