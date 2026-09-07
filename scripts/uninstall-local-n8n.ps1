@@ -18,10 +18,10 @@ function Show-Usage {
 不會刪各目錄的 .gitkeep。
 
 用法：
-  .\scripts\uninstall-local-n8n.ps1
-  .\scripts\uninstall-local-n8n.ps1 --keep-data     只拆 Docker，保留 data/ 與 exports/
-  .\scripts\uninstall-local-n8n.ps1 --keep-env      保留 .env
-  .\scripts\uninstall-local-n8n.ps1 --keep-images   不刪 n8n / postgres / ngrok 映像
+  .\scripts\uninstall-local-n8n.cmd
+  .\scripts\uninstall-local-n8n.cmd --keep-data     只拆 Docker，保留 data/ 與 exports/
+  .\scripts\uninstall-local-n8n.cmd --keep-env      保留 .env
+  .\scripts\uninstall-local-n8n.cmd --keep-images   不刪 n8n / postgres / ngrok 映像
 '@ | Write-Host
 }
 

@@ -14,9 +14,9 @@ function Write-Err([string]$Message) {
 function Show-Usage {
     @'
 用法：
-  .\scripts\sync-from-cloud.ps1                 完整複製使用者、Credentials、工作流程
-  .\scripts\sync-from-cloud.ps1 --credentials-only   只從雲端匯入 Credentials
-  .\scripts\sync-from-cloud.ps1 --keep-exports       同步後保留 exports/ 暫存檔
+  .\scripts\sync-from-cloud.cmd                 完整複製使用者、Credentials、工作流程
+  .\scripts\sync-from-cloud.cmd --credentials-only   只從雲端匯入 Credentials
+  .\scripts\sync-from-cloud.cmd --keep-exports       同步後保留 exports/ 暫存檔
 '@ | Write-Host
 }
 

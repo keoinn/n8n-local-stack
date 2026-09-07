@@ -173,6 +173,18 @@ write_marker() {
   printf '%s' "$text" > "${ROOT}/.n8n-local-bootstrapped"
 }
 
+print_url_field() {
+  local label="$1"
+  local value="$2"
+  local color="${3:-$C_CYAN}"
+  local pad=""
+  # 標籤欄顯示寬度 12（與「ngrok 檢查頁」對齊）；CJK 以雙寬計算。
+  case "$label" in
+    內部網址|外部網址) pad="    " ;;
+  esac
+  printf '%b\n' "  ${C_WHITE}${label}${pad}${C_RESET}  ${color}${value}${C_RESET}"
+}
+
 print_ready_banner() {
   local enable_ngrok domain internal_url external_url
   enable_ngrok="$(get_env_value ENABLE_NGROK)"
@@ -192,15 +204,15 @@ print_ready_banner() {
   title "  n8n 已啟動"
   title "════════════════════════════════════════════════════════════"
   printf '\n'
-  printf '%b\n' "  ${C_WHITE}內部網址${C_RESET}      ${C_CYAN}${internal_url}${C_RESET}"
+  print_url_field "內部網址" "$internal_url"
   if [[ -n "$external_url" ]]; then
-    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_CYAN}${external_url}${C_RESET}"
-    printf '%b\n' "  ${C_WHITE}ngrok 檢查頁${C_RESET}  ${C_CYAN}http://127.0.0.1:4040${C_RESET}"
+    print_url_field "外部網址" "$external_url"
+    print_url_field "ngrok 檢查頁" "http://127.0.0.1:4040"
   else
-    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_YELLOW}未啟用 ngrok，無法使用對外 webhook${C_RESET}"
+    print_url_field "外部網址" "未啟用 ngrok，無法使用對外 webhook" "$C_YELLOW"
   fi
   printf '\n'
-  success "請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
 }
 
 marker_scenario() {

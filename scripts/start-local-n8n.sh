@@ -63,6 +63,17 @@ success() { printf '%b\n' "${C_GREEN}$*${C_RESET}"; }
 warn() { printf '%b\n' "${C_YELLOW}$*${C_RESET}"; }
 error() { printf '%b\n' "${C_RED}$*${C_RESET}" >&2; }
 
+print_url_field() {
+  local label="$1"
+  local value="$2"
+  local color="${3:-$C_CYAN}"
+  local pad=""
+  case "$label" in
+    內部網址|外部網址) pad="    " ;;
+  esac
+  printf '%b\n' "  ${C_WHITE}${label}${pad}${C_RESET}  ${color}${value}${C_RESET}"
+}
+
 sanitize_env_value() {
   printf '%s' "$1" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
@@ -156,13 +167,13 @@ if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
   title "  n8n 已啟動"
   title "════════════════════════════════════════════════════════════"
   printf '\n'
-  printf '%b\n' "  ${C_WHITE}內部網址${C_RESET}      ${C_CYAN}${INTERNAL_URL}${C_RESET}"
+  print_url_field "內部網址" "$INTERNAL_URL"
   if [[ -n "$EXTERNAL_URL" ]]; then
-    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_CYAN}${EXTERNAL_URL}${C_RESET}"
-    printf '%b\n' "  ${C_WHITE}ngrok 檢查頁${C_RESET}  ${C_CYAN}http://127.0.0.1:4040${C_RESET}"
+    print_url_field "外部網址" "$EXTERNAL_URL"
+    print_url_field "ngrok 檢查頁" "http://127.0.0.1:4040"
   else
-    printf '%b\n' "  ${C_WHITE}外部網址${C_RESET}      ${C_YELLOW}未啟用 ngrok，無法使用對外 webhook${C_RESET}"
+    print_url_field "外部網址" "未啟用 ngrok，無法使用對外 webhook" "$C_YELLOW"
   fi
   printf '\n'
-  success "請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
+  success "  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。"
 fi

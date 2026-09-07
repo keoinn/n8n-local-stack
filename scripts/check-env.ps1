@@ -23,7 +23,6 @@ function Show-Usage {
   5. 場景 B / C 是否已安裝 gcloud，並已登入
 
 用法：
-  .\scripts\check-env.ps1
   .\scripts\check-env.cmd
 '@ | Write-Host
 }
@@ -204,7 +203,7 @@ if (Test-Path -LiteralPath $EnvFile) {
     $hasEnv = $true
 }
 else {
-    Write-FailItem '.env 不存在' '請先執行 .\scripts\create-envfile.ps1'
+    Write-FailItem '.env 不存在' '請先執行 .\scripts\create-envfile.cmd'
 }
 
 if ($hasEnv) {
@@ -212,7 +211,7 @@ if ($hasEnv) {
     $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
 
     if ([string]::IsNullOrWhiteSpace($scenario)) {
-        Write-FailItem 'N8N_SCENARIO 未設定' '請填 A、B 或 C，或重新執行 .\scripts\create-envfile.ps1'
+        Write-FailItem 'N8N_SCENARIO 未設定' '請填 A、B 或 C，或重新執行 .\scripts\create-envfile.cmd'
     }
     elseif ($scenario -in @('A', 'B', 'C')) {
         Write-Ok "N8N_SCENARIO=$scenario"
@@ -392,7 +391,7 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
     if ($script:Fail -gt 0) {
         Write-Body '建議下一步：'
         if (-not $hasEnv) {
-            Write-Muted '  .\scripts\create-envfile.ps1'
+            Write-Muted '  .\scripts\create-envfile.cmd'
         }
         elseif ($scenario -in @('B', 'C')) {
             Write-Muted '  修正上方失敗項目後，若密鑰尚未寫入，再執行 .\scripts\pull-secrets.cmd'
@@ -405,15 +404,15 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
         Write-Body '建議下一步：'
         if ($scenario -in @('B', 'C')) {
             Write-Muted '  .\scripts\pull-secrets.cmd'
-            Write-Muted '  完成後再執行 .\scripts\start-local-n8n.cmd'
+            Write-Muted '  完成後再執行 .\start-n8n.cmd'
         }
         else {
-            Write-Muted '  .\scripts\start-local-n8n.cmd'
+            Write-Muted '  .\start-n8n.cmd'
         }
     }
     else {
         Write-Body '建議下一步：'
-        Write-Muted '  .\scripts\start-local-n8n.cmd'
+        Write-Muted '  .\start-n8n.cmd'
     }
     Write-Host ''
 }

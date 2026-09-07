@@ -22,7 +22,6 @@ function Show-Usage {
   4. 依場景以互動方式填入必要機密資訊
 
 用法：
-  .\scripts\create-envfile.ps1
   .\scripts\create-envfile.cmd
 '@ | Write-Host
 }
@@ -81,6 +80,10 @@ function Get-Sanitized([string]$Value) {
         return ''
     }
     return (($Value -replace '[\r\n]+', '')).Trim()
+}
+
+function Write-SummaryItem([string]$Name, [string]$Value) {
+    Write-Muted ('  {0,-20} {1}' -f $Name, $Value)
 }
 
 function Write-Prompt([string]$Line1, [string]$Line2 = '') {
@@ -313,11 +316,11 @@ if ($Scenario -in @('A', 'B')) {
 
 if ($Scenario -in @('B', 'C')) {
     $prefix = Get-Step3Prefix
-    $GcpProject = Read-RequiredValue -Line1 "${prefix}請提供 Google Cloud 專案 ID（GCP_PROJECT）："
+    $GcpProject = Read-RequiredValue -Line1 "${prefix}請提供 Google Cloud 專案 ID（GCP_PROJECT）" -Line2 '請填寫 Cloud Run 服務所屬的 GCP 專案：'
     $prefix = Get-Step3Prefix
-    $GcpRegion = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1：" -Line2 '（直接按 Enter 採用預設值 asia-east1）：' -Default 'asia-east1'
+    $GcpRegion = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務所在區域（GCP_REGION）" -Line2 '（直接按 Enter 採用預設值 asia-east1）：' -Default 'asia-east1'
     $prefix = Get-Step3Prefix
-    $GcpRunService = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）：" -Line2 '（直接按 Enter 採用預設值 n8n）：' -Default 'n8n'
+    $GcpRunService = Read-DefaultValue -Line1 "${prefix}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）" -Line2 '（直接按 Enter 採用預設值 n8n）：' -Default 'n8n'
 }
 
 if ($EnableNgrok -eq 'true') {
@@ -362,22 +365,23 @@ Write-Ok '  .env 已建立完成。'
 Write-Ok '────────────────────────────────────────────────────────────'
 Write-Host ''
 Write-Body '寫入摘要（機密值不會顯示）：'
-Write-Muted "  N8N_SCENARIO=$Scenario"
-Write-Muted "  ENABLE_NGROK=$EnableNgrok"
+Write-SummaryItem 'N8N_SCENARIO' $Scenario
+Write-SummaryItem 'ENABLE_NGROK' $EnableNgrok
 if ($Scenario -in @('A', 'B')) {
-    Write-Muted '  POSTGRES_PASSWORD=（已設定）'
+    Write-SummaryItem 'POSTGRES_PASSWORD' '（已設定）'
 }
 if ($Scenario -in @('B', 'C')) {
-    Write-Muted "  GCP_PROJECT=$GcpProject"
-    Write-Muted "  GCP_REGION=$GcpRegion"
-    Write-Muted "  GCP_RUN_SERVICE=$GcpRunService"
+    Write-SummaryItem 'GCP_PROJECT' $GcpProject
+    Write-SummaryItem 'GCP_REGION' $GcpRegion
+    Write-SummaryItem 'GCP_RUN_SERVICE' $GcpRunService
 }
 if ($EnableNgrok -eq 'true') {
-    Write-Muted '  NGROK_AUTHTOKEN=（已設定）'
-    Write-Muted "  NGROK_DOMAIN=$NgrokDomain"
+    Write-SummaryItem 'NGROK_AUTHTOKEN' '（已設定）'
+    Write-SummaryItem 'NGROK_DOMAIN' $NgrokDomain
 }
 else {
-    Write-Muted '  NGROK_AUTHTOKEN / NGROK_DOMAIN=（已留空）'
+    Write-SummaryItem 'NGROK_AUTHTOKEN' '（已留空）'
+    Write-SummaryItem 'NGROK_DOMAIN' '（已留空）'
 }
 if (Test-Path -LiteralPath $BackupFile) {
     Write-Muted "  先前設定備份：$BackupFile"

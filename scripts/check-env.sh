@@ -402,15 +402,15 @@ if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
     case "$SCENARIO" in
       B|C)
         muted "  ./scripts/pull-secrets.sh"
-        muted "  完成後再執行 ./scripts/start-local-n8n.sh"
+        muted "  完成後再執行 ./start-n8n.sh"
         ;;
       *)
-        muted "  ./scripts/start-local-n8n.sh"
+        muted "  ./start-n8n.sh"
         ;;
     esac
   else
     body "建議下一步："
-    muted "  ./scripts/start-local-n8n.sh"
+    muted "  ./start-n8n.sh"
   fi
   printf '\n'
 fi

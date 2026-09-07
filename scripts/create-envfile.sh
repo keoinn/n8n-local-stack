@@ -119,6 +119,10 @@ print_prompt() {
   fi
 }
 
+print_summary_item() {
+  muted "$(printf '  %-20s %s' "$1" "$2")"
+}
+
 next_step3() {
   STEP3=$((STEP3 + 1))
   STEP3_PREFIX="【步驟 3-${STEP3}】"
@@ -375,11 +379,11 @@ esac
 case "$SCENARIO" in
   B|C)
     next_step3
-    read_required "${STEP3_PREFIX}請提供 Google Cloud 專案 ID（GCP_PROJECT）：" "" GCP_PROJECT
+    read_required "${STEP3_PREFIX}請提供 Google Cloud 專案 ID（GCP_PROJECT）" "請填寫 Cloud Run 服務所屬的 GCP 專案：" GCP_PROJECT
     next_step3
-    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務所在區域（GCP_REGION），例如 asia-east1：" "（直接按 Enter 採用預設值 asia-east1）：" "asia-east1" GCP_REGION
+    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務所在區域（GCP_REGION）" "（直接按 Enter 採用預設值 asia-east1）：" "asia-east1" GCP_REGION
     next_step3
-    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）：" "（直接按 Enter 採用預設值 n8n）：" "n8n" GCP_RUN_SERVICE
+    read_with_default "${STEP3_PREFIX}請提供 Google Cloud Run 服務名稱（GCP_RUN_SERVICE）" "（直接按 Enter 採用預設值 n8n）：" "n8n" GCP_RUN_SERVICE
     ;;
 esac
 
@@ -423,23 +427,24 @@ success "  .env 已建立完成。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
 body "寫入摘要（機密值不會顯示）："
-muted "  N8N_SCENARIO=${SCENARIO}"
-muted "  ENABLE_NGROK=${ENABLE_NGROK}"
+print_summary_item "N8N_SCENARIO" "$SCENARIO"
+print_summary_item "ENABLE_NGROK" "$ENABLE_NGROK"
 case "$SCENARIO" in
-  A|B) muted "  POSTGRES_PASSWORD=（已設定）" ;;
+  A|B) print_summary_item "POSTGRES_PASSWORD" "（已設定）" ;;
 esac
 case "$SCENARIO" in
   B|C)
-    muted "  GCP_PROJECT=${GCP_PROJECT}"
-    muted "  GCP_REGION=${GCP_REGION}"
-    muted "  GCP_RUN_SERVICE=${GCP_RUN_SERVICE}"
+    print_summary_item "GCP_PROJECT" "$GCP_PROJECT"
+    print_summary_item "GCP_REGION" "$GCP_REGION"
+    print_summary_item "GCP_RUN_SERVICE" "$GCP_RUN_SERVICE"
     ;;
 esac
 if [[ "$ENABLE_NGROK" = "true" ]]; then
-  muted "  NGROK_AUTHTOKEN=（已設定）"
-  muted "  NGROK_DOMAIN=${NGROK_DOMAIN}"
+  print_summary_item "NGROK_AUTHTOKEN" "（已設定）"
+  print_summary_item "NGROK_DOMAIN" "$NGROK_DOMAIN"
 else
-  muted "  NGROK_AUTHTOKEN / NGROK_DOMAIN=（已留空）"
+  print_summary_item "NGROK_AUTHTOKEN" "（已留空）"
+  print_summary_item "NGROK_DOMAIN" "（已留空）"
 fi
 if [[ -f "$BACKUP_FILE" ]]; then
   muted "  先前設定備份：${BACKUP_FILE}"

@@ -183,6 +183,44 @@ function Write-Marker([string]$Scenario) {
     }
 }
 
+function Get-DisplayWidth([string]$Text) {
+    $width = 0
+    if ([string]::IsNullOrEmpty($Text)) {
+        return 0
+    }
+    foreach ($ch in $Text.ToCharArray()) {
+        if ([int][char]$ch -gt 0x7F) {
+            $width += 2
+        }
+        else {
+            $width += 1
+        }
+    }
+    return $width
+}
+
+function Write-AlignedField {
+    param(
+        [string]$Label,
+        [string]$Value,
+        [ConsoleColor]$ValueColor = 'Cyan'
+    )
+    $pad = 12 - (Get-DisplayWidth $Label)
+    if ($pad -lt 0) {
+        $pad = 0
+    }
+    $old = [Console]::ForegroundColor
+    try {
+        [Console]::ForegroundColor = [ConsoleColor]::White
+        [Console]::Write(('  ' + $Label + (' ' * $pad) + '  '))
+        [Console]::ForegroundColor = $ValueColor
+        [Console]::WriteLine($Value)
+    }
+    finally {
+        [Console]::ForegroundColor = $old
+    }
+}
+
 function Write-ReadyBanner {
     $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
     $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
@@ -200,20 +238,16 @@ function Write-ReadyBanner {
     Write-Title '  n8n 已啟動'
     Write-Title '════════════════════════════════════════════════════════════'
     Write-Host ''
-    Write-Host '  內部網址      ' -ForegroundColor White -NoNewline
-    Write-Host $internalUrl -ForegroundColor Cyan
+    Write-AlignedField '內部網址' $internalUrl
     if ($externalUrl) {
-        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-        Write-Host $externalUrl -ForegroundColor Cyan
-        Write-Host '  ngrok 檢查頁  ' -ForegroundColor White -NoNewline
-        Write-Host 'http://127.0.0.1:4040' -ForegroundColor Cyan
+        Write-AlignedField '外部網址' $externalUrl
+        Write-AlignedField 'ngrok 檢查頁' 'http://127.0.0.1:4040'
     }
     else {
-        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-        Write-Host '未啟用 ngrok，無法使用對外 webhook' -ForegroundColor Yellow
+        Write-AlignedField '外部網址' '未啟用 ngrok，無法使用對外 webhook' 'Yellow'
     }
     Write-Host ''
-    Write-OkLine '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。'
+    Write-OkLine '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。'
 }
 
 function Get-MarkerScenario {
@@ -266,7 +300,7 @@ Write-Title '══════════════════════�
 Write-Section '【步驟 1】設定檔'
 if (Test-Path -LiteralPath $EnvFile) {
     Write-OkLine '已有 .env，略過建立。'
-    Write-Muted '  若要重建，請自行執行 .\scripts\create-envfile.ps1'
+    Write-Muted '  若要重建，請自行執行 .\scripts\create-envfile.cmd'
 }
 else {
     Write-Body '尚未找到 .env，開始引導建立。'

@@ -16,9 +16,8 @@ function Show-Usage {
 依 .env 的場景與 ngrok 設定啟動本機 n8n，完成後顯示內部與外部網址。
 
 用法：
-  .\scripts\start-local-n8n.ps1
   .\scripts\start-local-n8n.cmd
-  .\scripts\start-local-n8n.ps1 --no-pull   不重新下載映像，只建立或啟動 container
+  .\scripts\start-local-n8n.cmd --no-pull   不重新下載映像，只建立或啟動 container
 '@ | Write-Host
 }
 
@@ -70,7 +69,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
-    Write-Err "找不到 $EnvFile。請先執行 .\scripts\create-envfile.ps1"
+    Write-Err "找不到 $EnvFile。請先執行 .\scripts\create-envfile.cmd"
     Exit-N8nScript 1
 }
 
@@ -116,6 +115,44 @@ if ($LASTEXITCODE -ne 0) {
     Exit-N8nScript $LASTEXITCODE
 }
 
+function Get-DisplayWidth([string]$Text) {
+    $width = 0
+    if ([string]::IsNullOrEmpty($Text)) {
+        return 0
+    }
+    foreach ($ch in $Text.ToCharArray()) {
+        if ([int][char]$ch -gt 0x7F) {
+            $width += 2
+        }
+        else {
+            $width += 1
+        }
+    }
+    return $width
+}
+
+function Write-AlignedField {
+    param(
+        [string]$Label,
+        [string]$Value,
+        [ConsoleColor]$ValueColor = 'Cyan'
+    )
+    $pad = 12 - (Get-DisplayWidth $Label)
+    if ($pad -lt 0) {
+        $pad = 0
+    }
+    $old = [Console]::ForegroundColor
+    try {
+        [Console]::ForegroundColor = [ConsoleColor]::White
+        [Console]::Write(('  ' + $Label + (' ' * $pad) + '  '))
+        [Console]::ForegroundColor = $ValueColor
+        [Console]::WriteLine($Value)
+    }
+    finally {
+        [Console]::ForegroundColor = $old
+    }
+}
+
 if ($env:N8N_ORCHESTRATED -ne '1') {
     $internalUrl = 'http://localhost:5678'
     $externalUrl = ''
@@ -128,18 +165,14 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
     Write-Host '  n8n 已啟動' -ForegroundColor Cyan
     Write-Host '════════════════════════════════════════════════════════════' -ForegroundColor Cyan
     Write-Host ''
-    Write-Host '  內部網址      ' -ForegroundColor White -NoNewline
-    Write-Host $internalUrl -ForegroundColor Cyan
+    Write-AlignedField '內部網址' $internalUrl
     if ($externalUrl) {
-        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-        Write-Host $externalUrl -ForegroundColor Cyan
-        Write-Host '  ngrok 檢查頁  ' -ForegroundColor White -NoNewline
-        Write-Host 'http://127.0.0.1:4040' -ForegroundColor Cyan
+        Write-AlignedField '外部網址' $externalUrl
+        Write-AlignedField 'ngrok 檢查頁' 'http://127.0.0.1:4040'
     }
     else {
-        Write-Host '  外部網址      ' -ForegroundColor White -NoNewline
-        Write-Host '未啟用 ngrok，無法使用對外 webhook' -ForegroundColor Yellow
+        Write-AlignedField '外部網址' '未啟用 ngrok，無法使用對外 webhook' 'Yellow'
     }
     Write-Host ''
-    Write-Host '請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
+    Write-Host '  請以內部網址開啟本機編輯器；OAuth / Webhook 請使用外部網址。' -ForegroundColor Green
 }
