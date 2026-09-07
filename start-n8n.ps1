@@ -111,15 +111,14 @@ function Invoke-ProjectScript {
     # 必須在同一個主控台用 `&` 呼叫，設定精靈的提示才會顯示。
     # 子腳本的 Exit-N8nScript 在 N8N_ORCHESTRATED=1 時會 throw，而不是 exit。
     try {
+        $global:LASTEXITCODE = 0
         if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
             & $path @ScriptArgs
         }
         else {
             & $path
         }
-        if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
-            return [int]$LASTEXITCODE
-        }
+        # 成功結束的子腳本不會設 LASTEXITCODE；不可沿用工作階段裡的舊值。
         return 0
     }
     catch {
@@ -188,6 +187,7 @@ else {
     Write-Body '尚未找到 .env，開始引導建立。'
     $rc = Invoke-ProjectScript 'create-envfile.ps1'
     if ($rc -ne 0) {
+        Write-Err "建立 .env 未完成（結束代碼 $rc）。"
         exit $rc
     }
     if (-not (Test-Path -LiteralPath $EnvFile)) {
