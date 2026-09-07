@@ -143,7 +143,7 @@ function Write-ReadyBanner {
     $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
     $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
     if ([string]::IsNullOrWhiteSpace($enableNgrok)) {
-        $enableNgrok = 'true'
+        $enableNgrok = 'false'
     }
     $internalUrl = 'http://localhost:5678'
     $externalUrl = ''

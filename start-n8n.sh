@@ -138,7 +138,7 @@ print_ready_banner() {
   domain="$(get_env_value NGROK_DOMAIN)"
   enable_ngrok="$(printf '%s' "$enable_ngrok" | tr '[:upper:]' '[:lower:]')"
   if [[ -z "$enable_ngrok" ]]; then
-    enable_ngrok="true"
+    enable_ngrok="false"
   fi
   internal_url="http://localhost:5678"
   external_url=""

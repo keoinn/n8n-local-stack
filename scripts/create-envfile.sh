@@ -326,11 +326,11 @@ printf '\n'
 print_ngrok_help
 ENABLE_NGROK=""
 while :; do
-  print_prompt "是否啟用 ngrok 整合？[Y/n]" "（直接按 Enter 採用預設值：啟用）："
+  print_prompt "是否啟用 ngrok 整合？[y/N]" "（直接按 Enter 採用預設值：停用）："
   raw="$(read_line)"
   raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
   if [[ -z "$raw" ]]; then
-    ENABLE_NGROK="true"
+    ENABLE_NGROK="false"
     break
   fi
   case "$raw" in

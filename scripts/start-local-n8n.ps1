@@ -82,7 +82,7 @@ $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
 
 if ([string]::IsNullOrWhiteSpace($scenario)) { $scenario = 'A' }
 $scenario = $scenario.ToUpperInvariant()
-if ([string]::IsNullOrWhiteSpace($enableNgrok)) { $enableNgrok = 'true' }
+if ([string]::IsNullOrWhiteSpace($enableNgrok)) { $enableNgrok = 'false' }
 $enableNgrok = $enableNgrok.ToLowerInvariant()
 
 $composeArgs = @('compose')

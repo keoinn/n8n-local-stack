@@ -256,9 +256,9 @@ Write-Host ''
 
 $EnableNgrok = ''
 while ($true) {
-    $raw = Get-Sanitized (Read-Visible '是否啟用 ngrok 整合？[Y/n]' '（直接按 Enter 採用預設值：啟用）：')
+    $raw = Get-Sanitized (Read-Visible '是否啟用 ngrok 整合？[y/N]' '（直接按 Enter 採用預設值：停用）：')
     if ([string]::IsNullOrWhiteSpace($raw)) {
-        $EnableNgrok = 'true'
+        $EnableNgrok = 'false'
         break
     }
     $normalized = $raw.ToLowerInvariant()

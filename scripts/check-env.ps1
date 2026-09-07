@@ -283,7 +283,7 @@ if ($hasEnv) {
             Write-Ok 'ENABLE_NGROK=false（僅本機編輯，無法使用對外 webhook）'
         }
         '' {
-            Write-WarnItem 'ENABLE_NGROK 未設定' '啟動腳本會預設為 true。請在 .env 明確填 true 或 false。'
+            Write-WarnItem 'ENABLE_NGROK 未設定' '啟動腳本會預設為 false。請在 .env 明確填 true 或 false。'
         }
         default {
             Write-FailItem "ENABLE_NGROK=$enableNgrok 不是有效值" '請填 true 或 false。'

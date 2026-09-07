@@ -115,7 +115,7 @@ if [[ -z "$SCENARIO" ]]; then
   SCENARIO="A"
 fi
 if [[ -z "$ENABLE_NGROK" ]]; then
-  ENABLE_NGROK="true"
+  ENABLE_NGROK="false"
 fi
 
 compose_args=(compose)
