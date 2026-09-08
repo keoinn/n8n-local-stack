@@ -100,6 +100,8 @@ else {
 if ($NoPull) {
     $composeArgs += @('--pull', 'never')
 }
+# Code 節點外部套件寫在自訂映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
+$composeArgs += '--build'
 
 if ($NoPull) {
     Write-Host "啟動 n8n（場景 $scenario，不下載映像）..." -ForegroundColor White

@@ -18,7 +18,13 @@ services:
       retries: 10
 
   n8n:
-    image: ${N8N_IMAGE:-n8nio/n8n:2.36.8}
+    image: n8n-local-stack:with-external-libs
+    build:
+      context: ./docker/n8n
+      dockerfile: Dockerfile
+      args:
+        N8N_BASE_IMAGE: ${N8N_IMAGE:-n8nio/n8n:2.36.8}
+        EXTRA_JS_PACKAGES: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -49,6 +55,9 @@ services:
       N8N_ENDPOINT_HEALTH: health
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       N8N_RUNNERS_ENABLED: "true"
+      # Code 節點允許 require 的外部套件（逗號分隔）。套件會在建置映像時安裝。
+      NODE_FUNCTION_ALLOW_EXTERNAL: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
+      NODE_PATH: /opt/n8n-extra/node_modules
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
       TZ: ${GENERIC_TIMEZONE:-Asia/Taipei}
     volumes:
