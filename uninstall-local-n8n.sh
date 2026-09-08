@@ -41,6 +41,15 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+pause_on_exit() {
+  if [[ -t 0 ]]; then
+    printf '\n按下任意鍵關閉視窗'
+    read -r -n 1 -s || true
+    printf '\n'
+  fi
+}
+trap pause_on_exit EXIT
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "找不到 docker。" >&2
   exit 1

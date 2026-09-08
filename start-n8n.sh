@@ -38,6 +38,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+pause_on_exit() {
+  if [[ -t 0 ]]; then
+    printf '\n按下任意鍵關閉視窗'
+    read -r -n 1 -s || true
+    printf '\n'
+  fi
+}
+trap pause_on_exit EXIT
+
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'
   C_BOLD=$'\033[1m'
@@ -258,6 +267,40 @@ image_exists() {
   local image="$1"
   docker image inspect "$image" >/dev/null 2>&1
 }
+
+print_git_install_hint() {
+  warn "目前無法自動更新程式碼。"
+  warn "若要更新，請先安裝 git 原始碼控制工具："
+  printf '%b\n' "  ${C_CYAN}https://git-scm.com/${C_RESET}"
+  printf '\n'
+}
+
+update_project_if_possible() {
+  if [[ "${N8N_SKIP_SELF_UPDATE:-}" = "1" ]]; then
+    return 0
+  fi
+
+  printf '\n'
+  if ! command -v git >/dev/null 2>&1; then
+    print_git_install_hint
+    return 0
+  fi
+  if ! git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    print_git_install_hint
+    return 0
+  fi
+
+  body "正在還原並更新專案 ..."
+  if git -C "${ROOT}" checkout -q . && git -C "${ROOT}" pull; then
+    success "專案已更新。"
+    trap - EXIT
+    N8N_SKIP_SELF_UPDATE=1 exec "${ROOT}/start-n8n.sh" "$@"
+  fi
+  warn "更新失敗，將以目前的程式碼繼續啟動。"
+  printf '\n'
+}
+
+update_project_if_possible
 
 export N8N_ORCHESTRATED=1
 cd "${ROOT}"

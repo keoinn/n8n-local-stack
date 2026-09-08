@@ -31,6 +31,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+pause_on_exit() {
+  if [[ -t 0 ]]; then
+    printf '\n按下任意鍵關閉視窗'
+    read -r -n 1 -s || true
+    printf '\n'
+  fi
+}
+trap pause_on_exit EXIT
+
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'
   C_BOLD=$'\033[1m'
