@@ -268,11 +268,19 @@ image_exists() {
   docker image inspect "$image" >/dev/null 2>&1
 }
 
+UPDATE_REF="${N8N_UPDATE_REF:-main}"
+
 print_git_install_hint() {
   warn "目前無法自動更新程式碼。"
   warn "若要更新，請先安裝 git 原始碼控制工具："
   printf '%b\n' "  ${C_CYAN}https://git-scm.com/${C_RESET}"
   printf '\n'
+}
+
+has_local_tracked_changes() {
+  local status
+  status="$(git -C "${ROOT}" status --porcelain --untracked-files=no 2>/dev/null || true)"
+  [[ -n "$status" ]]
 }
 
 update_project_if_possible() {
@@ -290,14 +298,51 @@ update_project_if_possible() {
     return 0
   fi
 
-  body "正在還原並更新專案 ..."
-  if git -C "${ROOT}" checkout -q . && git -C "${ROOT}" pull; then
-    success "專案已更新。"
-    trap - EXIT
-    N8N_SKIP_SELF_UPDATE=1 exec "${ROOT}/start-n8n.sh" "$@"
+  body "正在從 origin/${UPDATE_REF} 更新專案 ..."
+
+  if has_local_tracked_changes; then
+    warn "偵測到本機改過專案檔，已略過自動更新以免覆蓋你的修改。"
+    warn "設定請只改 .env。若要更新，請先自行處理本機變更後再啟動。"
+    printf '\n'
+    return 0
   fi
-  warn "更新失敗，將以目前的程式碼繼續啟動。"
-  printf '\n'
+
+  local before after current_branch
+  before="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
+
+  if ! git -C "${ROOT}" fetch origin "${UPDATE_REF}"; then
+    warn "更新失敗，將以目前的程式碼繼續啟動。"
+    printf '\n'
+    return 0
+  fi
+
+  current_branch="$(git -C "${ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [[ "$current_branch" != "$UPDATE_REF" ]]; then
+    if ! git -C "${ROOT}" checkout -q "${UPDATE_REF}"; then
+      if ! git -C "${ROOT}" checkout -q -B "${UPDATE_REF}" "origin/${UPDATE_REF}"; then
+        warn "無法切換到 ${UPDATE_REF}，將以目前的程式碼繼續啟動。"
+        printf '\n'
+        return 0
+      fi
+    fi
+  fi
+
+  if ! git -C "${ROOT}" merge --ff-only "origin/${UPDATE_REF}"; then
+    warn "無法快轉到 origin/${UPDATE_REF}，將以目前的程式碼繼續啟動。"
+    printf '\n'
+    return 0
+  fi
+
+  after="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "$before" && "$before" = "$after" ]]; then
+    success "專案已是最新。"
+    printf '\n'
+    return 0
+  fi
+
+  success "專案已更新。"
+  trap - EXIT
+  N8N_SKIP_SELF_UPDATE=1 exec "${ROOT}/start-n8n.sh" "$@"
 }
 
 update_project_if_possible

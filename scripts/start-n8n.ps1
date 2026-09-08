@@ -305,6 +305,115 @@ function Test-DockerImage([string]$Image) {
     return $ok
 }
 
+function Invoke-Git {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$GitArgs,
+        [switch]$Quiet
+    )
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    if ($Quiet) {
+        & git -C $Root @GitArgs *> $null
+    }
+    else {
+        & git -C $Root @GitArgs
+    }
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    return [int]$code
+}
+
+function Update-ProjectIfPossible {
+    if ($env:N8N_SKIP_SELF_UPDATE -eq '1') {
+        return
+    }
+
+    $updateRef = 'main'
+    if (-not [string]::IsNullOrWhiteSpace($env:N8N_UPDATE_REF)) {
+        $updateRef = $env:N8N_UPDATE_REF.Trim()
+    }
+
+    Write-Host ''
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-WarnLine '目前無法自動更新程式碼。'
+        Write-WarnLine '若要更新，請先安裝 git 原始碼控制工具：'
+        Write-Host '  https://git-scm.com/' -ForegroundColor Cyan
+        Write-Host ''
+        return
+    }
+
+    $inside = Invoke-Git -Quiet -GitArgs @('rev-parse', '--is-inside-work-tree')
+    if ($inside -ne 0) {
+        Write-WarnLine '目前無法自動更新程式碼。'
+        Write-WarnLine '若要更新，請先安裝 git 原始碼控制工具：'
+        Write-Host '  https://git-scm.com/' -ForegroundColor Cyan
+        Write-Host ''
+        return
+    }
+
+    Write-Body "正在從 origin/$updateRef 更新專案 ..."
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $status = @(git -C $Root status --porcelain --untracked-files=no 2>$null | Where-Object { $_.Trim() -ne '' })
+    $ErrorActionPreference = $prev
+    if ($status.Count -gt 0) {
+        Write-WarnLine '偵測到本機改過專案檔，已略過自動更新以免覆蓋你的修改。'
+        Write-WarnLine '設定請只改 .env。若要更新，請先自行處理本機變更後再啟動。'
+        Write-Host ''
+        return
+    }
+
+    $before = ''
+    $ErrorActionPreference = 'Continue'
+    $before = ((git -C $Root rev-parse HEAD 2>$null) | Out-String).Trim()
+    $ErrorActionPreference = $prev
+
+    if ((Invoke-Git -GitArgs @('fetch', 'origin', $updateRef)) -ne 0) {
+        Write-WarnLine '更新失敗，將以目前的程式碼繼續啟動。'
+        Write-Host ''
+        return
+    }
+
+    $branch = ''
+    $ErrorActionPreference = 'Continue'
+    $branch = ((git -C $Root rev-parse --abbrev-ref HEAD 2>$null) | Out-String).Trim()
+    $ErrorActionPreference = $prev
+    if ($branch -ne $updateRef) {
+        if ((Invoke-Git -GitArgs @('checkout', '-q', $updateRef)) -ne 0) {
+            if ((Invoke-Git -GitArgs @('checkout', '-q', '-B', $updateRef, "origin/$updateRef")) -ne 0) {
+                Write-WarnLine "無法切換到 $updateRef，將以目前的程式碼繼續啟動。"
+                Write-Host ''
+                return
+            }
+        }
+    }
+
+    if ((Invoke-Git -GitArgs @('merge', '--ff-only', "origin/$updateRef")) -ne 0) {
+        Write-WarnLine "無法快轉到 origin/$updateRef，將以目前的程式碼繼續啟動。"
+        Write-Host ''
+        return
+    }
+
+    $after = ''
+    $ErrorActionPreference = 'Continue'
+    $after = ((git -C $Root rev-parse HEAD 2>$null) | Out-String).Trim()
+    $ErrorActionPreference = $prev
+    if ($before -and ($before -eq $after)) {
+        Write-OkLine '專案已是最新。'
+        Write-Host ''
+        return
+    }
+
+    Write-OkLine '專案已更新。'
+    $env:N8N_SKIP_SELF_UPDATE = '1'
+    & $PSCommandPath @args
+    exit $LASTEXITCODE
+}
+
+Update-ProjectIfPossible
+
 $global:N8N_ORCHESTRATED = $true
 $env:N8N_ORCHESTRATED = '1'
 Set-Location -LiteralPath $Root

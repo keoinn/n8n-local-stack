@@ -62,6 +62,8 @@ macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cm
 
 之後要再開一次，執行同一支腳本即可。映像檔若已在本機，只會啟動容器，不會重新下載。
 
+啟動時會從 `origin/main` 更新程式碼，不會還原或丟棄你改過的檔案。`.env` 與 `data/` 不受影響。若偵測到本機改過專案檔（腳本、`compose.yml` 等），會略過更新並繼續啟動。設定請只改 `.env`。若要暫時略過更新，可設 `N8N_SKIP_SELF_UPDATE=1`。
+
 場景 B 第一次會複製雲端資料，之後再開不會自動再複製。若要再同步一次，請執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。
 
 要關閉容器但保留資料、映像檔與設定檔，請執行 `./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）。
