@@ -196,12 +196,12 @@ function Invoke-Docker([object[]]$DockerArgs) {
 }
 
 Write-Host '確認本機 Postgres 與 n8n 已做過 migration ...'
-Invoke-Docker @('compose', 'up', '-d', 'postgres', 'n8n')
+Invoke-Docker @('compose', 'up', '-d', 'postgres', 'n8n', 'task-runners')
 Wait-ForService postgres 90
 Wait-ForService n8n 240
 
 Write-Host '暫停本機 n8n，避免匯入時寫入衝突 ...'
-Invoke-Docker @('compose', 'stop', 'n8n')
+Invoke-Docker @('compose', 'stop', 'n8n', 'task-runners')
 
 $cloudSchema = $env:CLOUD_DB_POSTGRESDB_SCHEMA
 if ([string]::IsNullOrWhiteSpace($cloudSchema)) {
@@ -258,7 +258,7 @@ else {
 }
 
 Write-Host '重新啟動本機 n8n ...'
-Invoke-Docker @('compose', 'up', '-d', 'n8n')
+Invoke-Docker @('compose', 'up', '-d', 'n8n', 'task-runners')
 Wait-ForService n8n 240
 
 if (-not $KeepExports) {

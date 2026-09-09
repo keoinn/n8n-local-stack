@@ -63,6 +63,48 @@ function Get-EnvValue([string]$Key) {
     return $raw.Trim()
 }
 
+function Update-EnvVar([string]$Key, [string]$Value) {
+    $value = (($Value -replace '[\r\n]+', '')).Trim()
+    $quoted = "'" + $value.Replace("'", "'\''") + "'"
+    $line = "$Key=$quoted"
+    $lines = @()
+    if (Test-Path -LiteralPath $EnvFile) {
+        $lines = [System.IO.File]::ReadAllLines($EnvFile, $Utf8NoBom)
+    }
+    $found = $false
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($existing in $lines) {
+        if (-not $found -and $existing.StartsWith("$Key=") -and -not $existing.StartsWith('#')) {
+            $out.Add($line)
+            $found = $true
+        }
+        else {
+            $out.Add($existing)
+        }
+    }
+    if (-not $found) {
+        if ($out.Count -gt 0 -and $out[$out.Count - 1] -ne '') {
+            $out.Add('')
+        }
+        $out.Add($line)
+    }
+    [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
+}
+
+function New-RunnersToken {
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.ToCharArray()
+    return -join (1..32 | ForEach-Object { $chars | Get-Random })
+}
+
+function Ensure-RunnersAuthToken {
+    $token = Get-EnvValue 'N8N_RUNNERS_AUTH_TOKEN'
+    if ([string]::IsNullOrWhiteSpace($token) -or $token.StartsWith('YOUR_')) {
+        $token = New-RunnersToken
+        Update-EnvVar 'N8N_RUNNERS_AUTH_TOKEN' $token
+        Write-Host '  已寫入 N8N_RUNNERS_AUTH_TOKEN（task runner 連線用）。' -ForegroundColor DarkGray
+    }
+}
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
     Exit-N8nScript 1
@@ -74,6 +116,8 @@ if (-not (Test-Path -LiteralPath $EnvFile)) {
 }
 
 Set-Location -LiteralPath $Root
+
+Ensure-RunnersAuthToken
 
 $scenario = Get-EnvValue 'N8N_SCENARIO'
 $enableNgrok = Get-EnvValue 'ENABLE_NGROK'
@@ -95,12 +139,12 @@ elseif ($scenario -eq 'C') {
     $composeArgs += @('up', '-d')
 }
 else {
-    $composeArgs += @('up', '-d', 'postgres', 'n8n')
+    $composeArgs += @('up', '-d', 'postgres', 'n8n', 'task-runners')
 }
 if ($NoPull) {
     $composeArgs += @('--pull', 'never')
 }
-# Code 節點外部套件寫在自訂映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
+# Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
 $composeArgs += '--build'
 
 if ($NoPull) {

@@ -139,6 +139,11 @@ function New-AlnumPassword {
     return -join (1..10 | ForEach-Object { $chars | Get-Random })
 }
 
+function New-RunnersToken {
+    $chars = [char[]]((48..57) + (65..90) + (97..122))
+    return -join (1..32 | ForEach-Object { $chars | Get-Random })
+}
+
 function Read-PostgresPassword {
     param([string]$Line1, [string]$Line2)
     $value = Get-Sanitized (Read-Visible $Line1 $Line2)
@@ -341,6 +346,7 @@ if ($EnableNgrok -eq 'true') {
 Update-EnvVar 'N8N_SCENARIO' $Scenario
 Update-EnvVar 'ENABLE_NGROK' $EnableNgrok
 Update-EnvVar 'N8N_LOCAL_BOOTSTRAPPED' ''
+Update-EnvVar 'N8N_RUNNERS_AUTH_TOKEN' (New-RunnersToken)
 
 if ($PostgresPassword) {
     Update-EnvVar 'POSTGRES_PASSWORD' $PostgresPassword
@@ -367,6 +373,7 @@ Write-Host ''
 Write-Body '寫入摘要（機密值不會顯示）：'
 Write-SummaryItem 'N8N_SCENARIO' $Scenario
 Write-SummaryItem 'ENABLE_NGROK' $EnableNgrok
+Write-SummaryItem 'N8N_RUNNERS_AUTH_TOKEN' '（已產生）'
 if ($Scenario -in @('A', 'B')) {
     Write-SummaryItem 'POSTGRES_PASSWORD' '（已設定）'
 }

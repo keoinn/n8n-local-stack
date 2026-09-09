@@ -18,13 +18,7 @@ services:
       retries: 10
 
   n8n:
-    image: n8n-local-stack:with-external-libs
-    build:
-      context: ./docker/n8n
-      dockerfile: Dockerfile
-      args:
-        N8N_BASE_IMAGE: ${N8N_IMAGE:-n8nio/n8n:2.36.8}
-        EXTRA_JS_PACKAGES: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
+    image: ${N8N_IMAGE:-n8nio/n8n:2.36.8}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -54,10 +48,10 @@ services:
       N8N_SKIP_AUTH_ON_OAUTH_CALLBACK: ${NGROK_DOMAIN:+true}
       N8N_ENDPOINT_HEALTH: health
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
-      N8N_RUNNERS_ENABLED: "true"
-      # Code 節點允許 require 的外部套件（逗號分隔）。套件會在建置映像時安裝。
-      NODE_FUNCTION_ALLOW_EXTERNAL: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
-      NODE_PATH: /opt/n8n-extra/node_modules
+      N8N_RUNNERS_MODE: external
+      N8N_RUNNERS_BROKER_LISTEN_ADDRESS: "0.0.0.0"
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+      N8N_NATIVE_PYTHON_RUNNER: "true"
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
       TZ: ${GENERIC_TIMEZONE:-Asia/Taipei}
     volumes:
@@ -69,6 +63,37 @@ services:
       timeout: 5s
       retries: 30
       start_period: 60s
+
+  task-runners:
+    image: n8n-local-stack:runners
+    build:
+      context: ./docker/runners
+      dockerfile: Dockerfile
+      args:
+        N8N_RUNNERS_IMAGE: ${N8N_RUNNERS_IMAGE:-n8nio/runners:2.36.8}
+        EXTRA_JS_PACKAGES: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
+        EXTRA_PY_PACKAGES: ${N8N_RUNNERS_PY_PACKAGES:-}
+        NODE_FUNCTION_ALLOW_BUILTIN: ${NODE_FUNCTION_ALLOW_BUILTIN:-crypto}
+        NODE_FUNCTION_ALLOW_EXTERNAL: ${NODE_FUNCTION_ALLOW_EXTERNAL:-pdf-lib}
+        N8N_RUNNERS_STDLIB_ALLOW: "${N8N_RUNNERS_STDLIB_ALLOW:-*}"
+        N8N_RUNNERS_EXTERNAL_ALLOW: ${N8N_RUNNERS_EXTERNAL_ALLOW:-}
+        N8N_RUNNERS_ALLOW_TRANSITIVE_IMPORTS: ${N8N_RUNNERS_ALLOW_TRANSITIVE_IMPORTS:-true}
+    restart: unless-stopped
+    depends_on:
+      n8n:
+        condition: service_healthy
+    environment:
+      N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
+      N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT: "0"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
+      NODE_PATH: /opt/n8n-extra-js/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5680/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   ngrok-env-check:
     image: busybox:1.37

@@ -104,6 +104,64 @@ get_env_value() {
   printf '%s' "$raw"
 }
 
+quote_env_value() {
+  QUOTE_VAL="$1" awk 'BEGIN {
+    v = ENVIRON["QUOTE_VAL"]
+    gsub(/\047/, "\047\\\047\047", v)
+    printf "\047%s\047", v
+  }'
+}
+
+upsert_env() {
+  local key="$1"
+  local value
+  local quoted tmp found
+  value="$(sanitize_env_value "$2")"
+  quoted="$(quote_env_value "$value")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/start-local-n8n.XXXXXX")"
+  found=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "${key}="*)
+        printf '%s=%s\n' "$key" "$quoted"
+        found=1
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "${ENV_FILE}" > "$tmp"
+  if [[ "$found" -eq 0 ]]; then
+    printf '%s=%s\n' "$key" "$quoted" >> "$tmp"
+  fi
+  mv "$tmp" "${ENV_FILE}"
+}
+
+generate_runners_token() {
+  local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  local pw="" i n
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+    n="$(LC_ALL=C od -An -N2 -tu2 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    if [[ -z "$n" ]]; then
+      n="$(date +%s)"
+    fi
+    pw="${pw}${chars:$((n % 62)):1}"
+  done
+  printf '%s' "$pw"
+}
+
+ensure_runners_auth_token() {
+  local token
+  token="$(get_env_value N8N_RUNNERS_AUTH_TOKEN)"
+  case "$token" in
+    ''|YOUR_*)
+      token="$(generate_runners_token)"
+      upsert_env N8N_RUNNERS_AUTH_TOKEN "$token"
+      muted "  已寫入 N8N_RUNNERS_AUTH_TOKEN（task runner 連線用）。"
+      ;;
+  esac
+}
+
 if ! command -v docker >/dev/null 2>&1; then
   error "找不到 docker。"
   exit 1
@@ -115,6 +173,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 cd "${ROOT}"
+
+ensure_runners_auth_token
 
 SCENARIO="$(get_env_value N8N_SCENARIO)"
 ENABLE_NGROK="$(get_env_value ENABLE_NGROK)"
@@ -139,13 +199,13 @@ else
   if [[ "$SCENARIO" = "C" ]]; then
     compose_args+=(up -d)
   else
-    compose_args+=(up -d postgres n8n)
+    compose_args+=(up -d postgres n8n task-runners)
   fi
 fi
 if [[ "$NO_PULL" -eq 1 ]]; then
   compose_args+=(--pull never)
 fi
-# Code 節點外部套件寫在自訂映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
+# Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
 compose_args+=(--build)
 
 if [[ "$NO_PULL" -eq 1 ]]; then

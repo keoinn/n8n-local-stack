@@ -174,6 +174,19 @@ generate_alnum_password() {
   printf '%s' "$pw"
 }
 
+generate_runners_token() {
+  local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  local pw="" i n
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+    n="$(LC_ALL=C od -An -N2 -tu2 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    if [[ -z "$n" ]]; then
+      n="$(date +%s)"
+    fi
+    pw="${pw}${chars:$((n % 62)):1}"
+  done
+  printf '%s' "$pw"
+}
+
 read_postgres_password() {
   local dest="$1"
   local input=""
@@ -404,6 +417,7 @@ fi
 upsert_env N8N_SCENARIO "$SCENARIO"
 upsert_env ENABLE_NGROK "$ENABLE_NGROK"
 upsert_env N8N_LOCAL_BOOTSTRAPPED ""
+upsert_env N8N_RUNNERS_AUTH_TOKEN "$(generate_runners_token)"
 
 if [[ -n "$POSTGRES_PASSWORD" ]]; then
   upsert_env POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
@@ -429,6 +443,7 @@ printf '\n'
 body "寫入摘要（機密值不會顯示）："
 print_summary_item "N8N_SCENARIO" "$SCENARIO"
 print_summary_item "ENABLE_NGROK" "$ENABLE_NGROK"
+print_summary_item "N8N_RUNNERS_AUTH_TOKEN" "（已產生）"
 case "$SCENARIO" in
   A|B) print_summary_item "POSTGRES_PASSWORD" "（已設定）" ;;
 esac

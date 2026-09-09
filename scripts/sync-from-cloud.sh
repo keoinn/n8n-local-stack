@@ -115,12 +115,12 @@ wait_for_service() {
 }
 
 echo "確認本機 Postgres 與 n8n 已做過 migration ..."
-docker compose up -d postgres n8n
+docker compose up -d postgres n8n task-runners
 wait_for_service postgres 90
 wait_for_service n8n 240
 
 echo "暫停本機 n8n，避免匯入時寫入衝突 ..."
-docker compose stop n8n
+docker compose stop n8n task-runners
 
 cloud_db_env=(
   -e "N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"
@@ -173,7 +173,7 @@ else
 fi
 
 echo "重新啟動本機 n8n ..."
-docker compose up -d n8n
+docker compose up -d n8n task-runners
 wait_for_service n8n 240
 
 if [[ "${KEEP_EXPORTS}" -eq 0 ]]; then
