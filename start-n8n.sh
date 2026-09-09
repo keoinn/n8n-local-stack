@@ -316,16 +316,17 @@ update_project_if_possible() {
     return 0
   fi
 
-  current_branch="$(git -C "${ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  if [[ "$current_branch" != "$UPDATE_REF" ]]; then
-    if ! git -C "${ROOT}" checkout -q "${UPDATE_REF}"; then
-      if ! git -C "${ROOT}" checkout -q -B "${UPDATE_REF}" "origin/${UPDATE_REF}"; then
-        warn "無法切換到 ${UPDATE_REF}，將以目前的程式碼繼續啟動。"
-        printf '\n'
-        return 0
-      fi
-    fi
-  fi
+  # 暫時略過切回 main，方便在 feature/allow-external-lib 上測試。
+  # current_branch="$(git -C "${ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  # if [[ "$current_branch" != "$UPDATE_REF" ]]; then
+  #   if ! git -C "${ROOT}" checkout -q "${UPDATE_REF}"; then
+  #     if ! git -C "${ROOT}" checkout -q -B "${UPDATE_REF}" "origin/${UPDATE_REF}"; then
+  #       warn "無法切換到 ${UPDATE_REF}，將以目前的程式碼繼續啟動。"
+  #       printf '\n'
+  #       return 0
+  #     fi
+  #   fi
+  # fi
 
   if ! git -C "${ROOT}" merge --ff-only "origin/${UPDATE_REF}"; then
     warn "無法快轉到 origin/${UPDATE_REF}，將以目前的程式碼繼續啟動。"
