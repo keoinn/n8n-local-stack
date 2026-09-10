@@ -98,6 +98,18 @@ macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cm
 
 完整同步會先清空本機對應資料再匯入。建議本機 n8n 版本與 Cloud Run 相同。
 
+若要把本機改過的資料回寫到 Supabase（會覆寫雲端）：
+
+```bash
+# macOS / Linux
+./scripts/sync-to-cloud.sh
+
+# Windows
+.\scripts\sync-to-cloud.cmd
+```
+
+回寫前請先把 Cloud Run 縮成 0 或暫停雲端流程。腳本會要求輸入 `WRITE` 才繼續；非互動環境請加 `--yes`。雲端工作流程的發布狀態會與本機相同。
+
 ### 場景 C
 
 本機 n8n 直接使用 Cloud Run 正在用的 Supabase。帳號與流程已在雲端，**不要**執行資料同步。
