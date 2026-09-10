@@ -54,7 +54,7 @@ function Invoke-Docker([object[]]$DockerArgs) {
     }
 }
 
-$downArgs = @('compose', '--profile', 'tunnel', 'down', '--volumes', '--remove-orphans')
+$downArgs = @('compose', '--profile', 'tunnel', '--profile', 'runners', 'down', '--volumes', '--remove-orphans')
 if (-not $KeepImages) {
     $downArgs += @('--rmi', 'all')
 }

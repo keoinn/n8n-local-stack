@@ -20,6 +20,7 @@ function Show-Usage {
   2. 由 .env.example 複製出新的 .env
   3. 詢問部署場景與是否啟用 ngrok，並寫入對應變數
   4. 依場景以互動方式填入必要機密資訊
+  5. Code 節點 task runners 會在之後執行 .\start-n8n.cmd 時再詢問
 
 用法：
   .\scripts\create-envfile.cmd

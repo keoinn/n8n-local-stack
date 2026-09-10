@@ -55,7 +55,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-down_args=(--profile tunnel down --volumes --remove-orphans)
+down_args=(--profile tunnel --profile runners down --volumes --remove-orphans)
 if [[ "${KEEP_IMAGES}" -eq 0 ]]; then
   down_args+=(--rmi all)
 fi

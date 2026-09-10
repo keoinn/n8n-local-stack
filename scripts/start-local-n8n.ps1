@@ -117,35 +117,51 @@ if (-not (Test-Path -LiteralPath $EnvFile)) {
 
 Set-Location -LiteralPath $Root
 
-Ensure-RunnersAuthToken
-
 $scenario = Get-EnvValue 'N8N_SCENARIO'
 $enableNgrok = Get-EnvValue 'ENABLE_NGROK'
+$enableRunners = Get-EnvValue 'ENABLE_N8N_RUNNERS'
 $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
 
 if ([string]::IsNullOrWhiteSpace($scenario)) { $scenario = 'A' }
 $scenario = $scenario.ToUpperInvariant()
 if ([string]::IsNullOrWhiteSpace($enableNgrok)) { $enableNgrok = 'false' }
 $enableNgrok = $enableNgrok.ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($enableRunners)) { $enableRunners = 'false' }
+$enableRunners = $enableRunners.ToLowerInvariant()
+
+if ($enableRunners -eq 'true') {
+    Ensure-RunnersAuthToken
+}
+else {
+    docker compose --profile runners stop task-runners 2>$null | Out-Null
+}
 
 $composeArgs = @('compose')
 if ($scenario -eq 'C') {
     $composeArgs += @('-f', 'compose.yml', '-f', 'compose.remote-supabase.yml')
 }
 if ($enableNgrok -eq 'true') {
-    $composeArgs += @('--profile', 'tunnel', 'up', '-d')
+    $composeArgs += @('--profile', 'tunnel')
 }
-elseif ($scenario -eq 'C') {
+if ($enableRunners -eq 'true') {
+    $composeArgs += @('--profile', 'runners')
+}
+if ($enableNgrok -eq 'true' -or $scenario -eq 'C') {
     $composeArgs += @('up', '-d')
 }
-else {
+elseif ($enableRunners -eq 'true') {
     $composeArgs += @('up', '-d', 'postgres', 'n8n', 'task-runners')
+}
+else {
+    $composeArgs += @('up', '-d', 'postgres', 'n8n')
 }
 if ($NoPull) {
     $composeArgs += @('--pull', 'never')
 }
-# Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
-$composeArgs += '--build'
+if ($enableRunners -eq 'true') {
+    # Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
+    $composeArgs += '--build'
+}
 
 if ($NoPull) {
     Write-Host "啟動 n8n（場景 $scenario，不下載映像）..." -ForegroundColor White

@@ -286,6 +286,22 @@ if [[ "$HAS_ENV" -eq 1 ]]; then
       fail_item "ENABLE_NGROK=${ENABLE_NGROK} 不是有效值" "請填 true 或 false。"
       ;;
   esac
+
+  ENABLE_RUNNERS="$(normalize_bool "$(get_env_value ENABLE_N8N_RUNNERS)")"
+  case "$ENABLE_RUNNERS" in
+    true|yes|1|y)
+      ok "ENABLE_N8N_RUNNERS=true（會建立並啟動 task runners 映像）"
+      ;;
+    false|no|0|n)
+      ok "ENABLE_N8N_RUNNERS=false（不建立 runners 映像）"
+      ;;
+    '')
+      warn_item "ENABLE_N8N_RUNNERS 未設定" "啟動腳本會詢問。請在 .env 明確填 true 或 false。"
+      ;;
+    *)
+      fail_item "ENABLE_N8N_RUNNERS=${ENABLE_RUNNERS} 不是有效值" "請填 true 或 false。"
+      ;;
+  esac
 else
   skip_item "場景與必填變數：因缺少 .env 而略過"
 fi

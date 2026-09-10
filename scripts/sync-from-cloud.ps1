@@ -195,13 +195,25 @@ function Invoke-Docker([object[]]$DockerArgs) {
     }
 }
 
+$enableRunners = (Get-EnvValue 'ENABLE_N8N_RUNNERS').ToLowerInvariant()
+if ($enableRunners -eq 'true') {
+    $upArgs = @('compose', '--profile', 'runners', 'up', '-d', 'postgres', 'n8n', 'task-runners')
+    $stopArgs = @('compose', '--profile', 'runners', 'stop', 'n8n', 'task-runners')
+    $restartArgs = @('compose', '--profile', 'runners', 'up', '-d', 'n8n', 'task-runners')
+}
+else {
+    $upArgs = @('compose', 'up', '-d', 'postgres', 'n8n')
+    $stopArgs = @('compose', 'stop', 'n8n')
+    $restartArgs = @('compose', 'up', '-d', 'n8n')
+}
+
 Write-Host '確認本機 Postgres 與 n8n 已做過 migration ...'
-Invoke-Docker @('compose', 'up', '-d', 'postgres', 'n8n', 'task-runners')
+Invoke-Docker $upArgs
 Wait-ForService postgres 90
 Wait-ForService n8n 240
 
 Write-Host '暫停本機 n8n，避免匯入時寫入衝突 ...'
-Invoke-Docker @('compose', 'stop', 'n8n', 'task-runners')
+Invoke-Docker $stopArgs
 
 $cloudSchema = $env:CLOUD_DB_POSTGRESDB_SCHEMA
 if ([string]::IsNullOrWhiteSpace($cloudSchema)) {
@@ -258,7 +270,7 @@ else {
 }
 
 Write-Host '重新啟動本機 n8n ...'
-Invoke-Docker @('compose', 'up', '-d', 'n8n', 'task-runners')
+Invoke-Docker $restartArgs
 Wait-ForService n8n 240
 
 if (-not $KeepExports) {

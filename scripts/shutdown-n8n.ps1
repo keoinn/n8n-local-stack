@@ -90,7 +90,7 @@ $composeArgs = @('compose')
 if ($scenario -eq 'C') {
     $composeArgs += @('-f', 'compose.yml', '-f', 'compose.remote-supabase.yml')
 }
-$composeArgs += @('--profile', 'tunnel', 'stop')
+$composeArgs += @('--profile', 'tunnel', '--profile', 'runners', 'stop')
 
 Write-Host ''
 Write-Title '════════════════════════════════════════════════════════════'

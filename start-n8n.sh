@@ -12,10 +12,11 @@ usage() {
 引導完成本機 n8n 啟動：
 
   1. 若尚無 .env，執行 create-envfile
-  2. 檢查環境（check-env）
-  3. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
-  4. 依 .env 啟動 container（start-local-n8n）
-  5. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
+  2. 詢問是否啟用 Code 節點 task runners 與套件清單
+  3. 檢查環境（check-env）
+  4. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
+  5. 依 .env 啟動 container（start-local-n8n）
+  6. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
 
 之後再執行本腳本，若映像已在本機，只會啟動既有 container，不會重新下載映像。
 
@@ -55,6 +56,7 @@ if [[ -t 1 ]]; then
   C_GREEN=$'\033[32m'
   C_YELLOW=$'\033[33m'
   C_BLUE=$'\033[34m'
+  C_MAGENTA=$'\033[35m'
   C_CYAN=$'\033[36m'
   C_WHITE=$'\033[97m'
 else
@@ -65,6 +67,7 @@ else
   C_GREEN=''
   C_YELLOW=''
   C_BLUE=''
+  C_MAGENTA=''
   C_CYAN=''
   C_WHITE=''
 fi
@@ -134,6 +137,188 @@ run_script() {
   rc=$?
   set -e
   return "$rc"
+}
+
+print_prompt() {
+  printf '%b\n' "${C_BOLD}${C_MAGENTA}$1${C_RESET}"
+  if [[ $# -ge 2 && -n "$2" ]]; then
+    printf '%b' "${C_BOLD}${C_MAGENTA}$2${C_RESET} "
+  fi
+}
+
+read_line() {
+  local input=""
+  IFS= read -r input || true
+  sanitize_env_value "$input"
+}
+
+read_with_default() {
+  local line1="$1"
+  local line2="$2"
+  local default="$3"
+  local dest="$4"
+  local input=""
+  print_prompt "$line1" "$line2"
+  input="$(read_line)"
+  if [[ -z "$input" ]]; then
+    input="$default"
+    success "已採用預設值 ${input}。"
+  fi
+  printf -v "$dest" '%s' "$input"
+  printf '\n'
+}
+
+normalize_bool() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+generate_runners_token() {
+  local chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  local pw="" i n
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32; do
+    n="$(LC_ALL=C od -An -N2 -tu2 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    if [[ -z "$n" ]]; then
+      n="$(date +%s)"
+    fi
+    pw="${pw}${chars:$((n % 62)):1}"
+  done
+  printf '%s' "$pw"
+}
+
+apply_runners_mode() {
+  local enabled="$1"
+  if [[ "$enabled" = "true" ]]; then
+    upsert_env ENABLE_N8N_RUNNERS true
+    upsert_env N8N_RUNNERS_MODE external
+    upsert_env N8N_NATIVE_PYTHON_RUNNER true
+    if is_placeholder "$(get_env_value N8N_RUNNERS_AUTH_TOKEN)"; then
+      upsert_env N8N_RUNNERS_AUTH_TOKEN "$(generate_runners_token)"
+    fi
+  else
+    upsert_env ENABLE_N8N_RUNNERS false
+    upsert_env N8N_RUNNERS_MODE internal
+    upsert_env N8N_NATIVE_PYTHON_RUNNER false
+  fi
+}
+
+configure_runners() {
+  local current raw
+  current="$(normalize_bool "$(get_env_value ENABLE_N8N_RUNNERS)")"
+  case "$current" in
+    true|false)
+      section "【步驟 2】Code 節點與 task runners"
+      apply_runners_mode "$current"
+      if [[ "$current" = "true" ]]; then
+        success "已啟用 task runners，將依 .env 建立映像並啟動 sidecar。"
+        muted "  若要關閉或改套件清單，請編輯 .env 後再執行本腳本。"
+      else
+        success "未啟用 task runners，略過建立映像。"
+        muted "  若之後需要 Code 節點額外套件，請把 .env 的 ENABLE_N8N_RUNNERS 改成 true，或刪除該列後再啟動。"
+      fi
+      printf '\n'
+      return 0
+      ;;
+  esac
+
+  section "【步驟 2】Code 節點與 task runners"
+  printf '\n'
+  body "Code 節點若要使用額外的 JavaScript / Python 套件（例如 pdf-lib、pymupdf），"
+  body "需要另外啟動 task runners，並建立含這些套件的映像。"
+  printf '\n'
+  body "若你只編輯流程、不需要在 Code 節點安裝額外套件，建議關閉。"
+  body "關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。"
+  printf '\n'
+
+  while :; do
+    print_prompt "是否啟用 task runners（Code 節點額外套件）？[Y/N]" "（直接按 Enter 採用預設值：停用）："
+    raw="$(normalize_bool "$(read_line)")"
+    if [[ -z "$raw" ]]; then
+      apply_runners_mode false
+      warn "已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。"
+      printf '\n'
+      return 0
+    fi
+    case "$raw" in
+      y|yes|true|1|是)
+        apply_runners_mode true
+        success "已啟用 task runners。接下來請確認套件清單，直接按 Enter 即採用預設值。"
+        printf '\n'
+        break
+        ;;
+      n|no|false|0|否)
+        apply_runners_mode false
+        warn "已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。"
+        printf '\n'
+        return 0
+        ;;
+      *)
+        warn "無效的選項。請輸入 Y（啟用）或 N（停用）。"
+        ;;
+    esac
+  done
+
+  local js_builtin js_external py_stdlib py_packages py_imports
+  js_builtin="$(get_env_value NODE_FUNCTION_ALLOW_BUILTIN)"
+  js_external="$(get_env_value NODE_FUNCTION_ALLOW_EXTERNAL)"
+  py_stdlib="$(get_env_value N8N_RUNNERS_STDLIB_ALLOW)"
+  py_packages="$(get_env_value N8N_RUNNERS_PY_PACKAGES)"
+  py_imports="$(get_env_value N8N_RUNNERS_EXTERNAL_ALLOW)"
+  [[ -n "$js_builtin" ]] || js_builtin="crypto"
+  [[ -n "$js_external" ]] || js_external="pdf-lib"
+  [[ -n "$py_stdlib" ]] || py_stdlib="*"
+  [[ -n "$py_packages" ]] || py_packages="pymupdf"
+  [[ -n "$py_imports" ]] || py_imports="pymupdf,fitz"
+
+  body "JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。"
+  read_with_default \
+    "請輸入允許的內建模組（逗號分隔）" \
+    "（直接按 Enter 採用預設值 ${js_builtin}）：" \
+    "$js_builtin" \
+    js_builtin
+
+  body "要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。"
+  body "改過清單後，下次啟動會重建映像。"
+  read_with_default \
+    "請輸入要安裝的 npm 套件（逗號分隔）" \
+    "（直接按 Enter 採用預設值 ${js_external}）：" \
+    "$js_external" \
+    js_external
+
+  body "Python Code 節點可使用的標準庫。填 * 代表全部開放。"
+  read_with_default \
+    "請輸入 N8N_RUNNERS_STDLIB_ALLOW" \
+    "（直接按 Enter 採用預設值 ${py_stdlib}）：" \
+    "$py_stdlib" \
+    py_stdlib
+
+  body "要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。"
+  read_with_default \
+    "請輸入要安裝的 Python 套件（逗號分隔）" \
+    "（直接按 Enter 採用預設值 ${py_packages}）：" \
+    "$py_packages" \
+    py_packages
+
+  body "Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同"
+  body "（例如安裝 pymupdf，程式裡要 import fitz）。"
+  read_with_default \
+    "請輸入允許 import 的模組（逗號分隔）" \
+    "（直接按 Enter 採用預設值 ${py_imports}）：" \
+    "$py_imports" \
+    py_imports
+
+  upsert_env NODE_FUNCTION_ALLOW_BUILTIN "$js_builtin"
+  upsert_env NODE_FUNCTION_ALLOW_EXTERNAL "$js_external"
+  upsert_env N8N_RUNNERS_STDLIB_ALLOW "$py_stdlib"
+  upsert_env N8N_RUNNERS_PY_PACKAGES "$py_packages"
+  upsert_env N8N_RUNNERS_EXTERNAL_ALLOW "$py_imports"
+
+  success "task runners 套件設定已寫入 .env。"
+  muted "  JS 內建：${js_builtin}"
+  muted "  JS 外部：${js_external}"
+  muted "  Python 標準庫：${py_stdlib}"
+  muted "  Python 安裝套件：${py_packages}"
+  muted "  Python 可 import：${py_imports}"
+  printf '\n'
 }
 
 quote_env_value() {
@@ -367,8 +552,10 @@ else
     error "仍找不到 .env，無法繼續。"
     exit 1
   fi
-  success "設定已寫入，接著檢查環境並啟動 n8n。"
+  success "設定已寫入，接著設定 Code 節點並啟動 n8n。"
 fi
+
+configure_runners
 
 SCENARIO="$(get_env_value N8N_SCENARIO)"
 SCENARIO="$(printf '%s' "$SCENARIO" | tr '[:lower:]' '[:upper:]')"
@@ -411,7 +598,7 @@ case "$SCENARIO" in
     ;;
 esac
 
-section "【步驟 2】檢查環境"
+section "【步驟 3】檢查環境"
 if [[ "$NEED_SECRETS" -eq 1 ]]; then
   muted "  場景 ${SCENARIO} 首次或密鑰尚未寫入時，check-env 對密鑰的警告可先忽略，下一步會自動拉取。"
 fi
@@ -426,7 +613,7 @@ if image_exists "$N8N_IMAGE" && { [[ "$BOOTSTRAPPED" -eq 1 ]] || project_has_con
   NO_PULL=1
 fi
 
-section "【步驟 3】雲端密鑰"
+section "【步驟 4】雲端密鑰"
 case "$SCENARIO" in
   B|C)
     body "場景 ${SCENARIO} 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
@@ -441,7 +628,7 @@ case "$SCENARIO" in
     ;;
 esac
 
-section "【步驟 4】啟動 n8n"
+section "【步驟 5】啟動 n8n"
 if [[ "$NO_PULL" -eq 1 ]]; then
   body "偵測到先前已啟動過，且映像已在本機。此次只啟動 container，不下載映像。"
   run_script scripts/start-local-n8n.sh --no-pull || exit 1
@@ -460,7 +647,7 @@ STEP5_SUMMARY=""
 case "$SCENARIO" in
   B)
     if [[ "$NEED_SYNC" -eq 1 ]]; then
-      section "【步驟 5】雲端資料"
+      section "【步驟 6】雲端資料"
       body "場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。"
       run_script scripts/sync-from-cloud.sh || exit 1
       STEP5_SUMMARY="場景 B 已將 Cloud Run 資料複製到本機。"
@@ -483,7 +670,7 @@ fi
 
 print_ready_banner
 printf '\n'
-section "【步驟 5】雲端資料"
+section "【步驟 6】雲端資料"
 body "${STEP5_SUMMARY}"
 printf '\n'
 success "────────────────────────────────────────────────────────────"

@@ -114,13 +114,24 @@ wait_for_service() {
   done
 }
 
+ENABLE_RUNNERS="$(printf '%s' "${ENABLE_N8N_RUNNERS:-}" | tr '[:upper:]' '[:lower:]')"
+compose_up=(compose)
+compose_stop=(compose)
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  compose_up+=(--profile runners up -d postgres n8n task-runners)
+  compose_stop+=(--profile runners stop n8n task-runners)
+else
+  compose_up+=(up -d postgres n8n)
+  compose_stop+=(stop n8n)
+fi
+
 echo "確認本機 Postgres 與 n8n 已做過 migration ..."
-docker compose up -d postgres n8n task-runners
+docker "${compose_up[@]}"
 wait_for_service postgres 90
 wait_for_service n8n 240
 
 echo "暫停本機 n8n，避免匯入時寫入衝突 ..."
-docker compose stop n8n task-runners
+docker "${compose_stop[@]}"
 
 cloud_db_env=(
   -e "N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"
@@ -173,7 +184,11 @@ else
 fi
 
 echo "重新啟動本機 n8n ..."
-docker compose up -d n8n task-runners
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  docker compose --profile runners up -d n8n task-runners
+else
+  docker compose up -d n8n
+fi
 wait_for_service n8n 240
 
 if [[ "${KEEP_EXPORTS}" -eq 0 ]]; then

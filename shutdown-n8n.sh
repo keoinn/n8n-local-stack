@@ -111,8 +111,8 @@ compose_args=(compose)
 if [[ "$SCENARIO" = "C" ]]; then
   compose_args+=(-f compose.yml -f compose.remote-supabase.yml)
 fi
-# 一律帶 tunnel profile，避免先前啟用的 ngrok 殘留在跑。
-compose_args+=(--profile tunnel stop)
+# 一律帶 tunnel / runners profile，避免先前啟用的 ngrok 或 sidecar 殘留在跑。
+compose_args+=(--profile tunnel --profile runners stop)
 
 printf '\n'
 title "════════════════════════════════════════════════════════════"

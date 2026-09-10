@@ -288,6 +288,22 @@ if ($hasEnv) {
             Write-FailItem "ENABLE_NGROK=$enableNgrok 不是有效值" '請填 true 或 false。'
         }
     }
+
+    $enableRunners = (Get-EnvValue 'ENABLE_N8N_RUNNERS').ToLowerInvariant()
+    switch ($enableRunners) {
+        { $_ -in @('true', 'yes', '1', 'y') } {
+            Write-Ok 'ENABLE_N8N_RUNNERS=true（會建立並啟動 task runners 映像）'
+        }
+        { $_ -in @('false', 'no', '0', 'n') } {
+            Write-Ok 'ENABLE_N8N_RUNNERS=false（不建立 runners 映像）'
+        }
+        '' {
+            Write-WarnItem 'ENABLE_N8N_RUNNERS 未設定' '啟動腳本會詢問。請在 .env 明確填 true 或 false。'
+        }
+        default {
+            Write-FailItem "ENABLE_N8N_RUNNERS=$enableRunners 不是有效值" '請填 true 或 false。'
+        }
+    }
 }
 else {
     Write-Skip '場景與必填變數：因缺少 .env 而略過'

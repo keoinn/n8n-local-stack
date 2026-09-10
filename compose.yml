@@ -49,11 +49,11 @@ services:
       N8N_ENDPOINT_HEALTH: health
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
       N8N_DEFAULT_BINARY_DATA_MODE: filesystem
-      N8N_RUNNERS_MODE: external
+      N8N_RUNNERS_MODE: ${N8N_RUNNERS_MODE:-internal}
       N8N_RUNNERS_BROKER_LISTEN_ADDRESS: "0.0.0.0"
       N8N_RUNNERS_AUTH_TOKEN: ${N8N_RUNNERS_AUTH_TOKEN}
       N8N_RUNNERS_TASK_TIMEOUT: "300"
-      N8N_NATIVE_PYTHON_RUNNER: "true"
+      N8N_NATIVE_PYTHON_RUNNER: ${N8N_NATIVE_PYTHON_RUNNER:-false}
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
       TZ: ${GENERIC_TIMEZONE:-Asia/Taipei}
     volumes:
@@ -67,6 +67,8 @@ services:
       start_period: 60s
 
   task-runners:
+    profiles:
+      - runners
     image: n8n-local-stack:runners
     build:
       context: ./docker/runners

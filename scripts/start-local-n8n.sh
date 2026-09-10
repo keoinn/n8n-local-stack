@@ -174,19 +174,28 @@ fi
 
 cd "${ROOT}"
 
-ensure_runners_auth_token
-
 SCENARIO="$(get_env_value N8N_SCENARIO)"
 ENABLE_NGROK="$(get_env_value ENABLE_NGROK)"
+ENABLE_RUNNERS="$(get_env_value ENABLE_N8N_RUNNERS)"
 NGROK_DOMAIN="$(get_env_value NGROK_DOMAIN)"
 
 SCENARIO="$(printf '%s' "$SCENARIO" | tr '[:lower:]' '[:upper:]')"
 ENABLE_NGROK="$(printf '%s' "$ENABLE_NGROK" | tr '[:upper:]' '[:lower:]')"
+ENABLE_RUNNERS="$(printf '%s' "$ENABLE_RUNNERS" | tr '[:upper:]' '[:lower:]')"
 if [[ -z "$SCENARIO" ]]; then
   SCENARIO="A"
 fi
 if [[ -z "$ENABLE_NGROK" ]]; then
   ENABLE_NGROK="false"
+fi
+if [[ -z "$ENABLE_RUNNERS" ]]; then
+  ENABLE_RUNNERS="false"
+fi
+
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  ensure_runners_auth_token
+else
+  docker compose --profile runners stop task-runners >/dev/null 2>&1 || true
 fi
 
 compose_args=(compose)
@@ -194,19 +203,27 @@ if [[ "$SCENARIO" = "C" ]]; then
   compose_args+=(-f compose.yml -f compose.remote-supabase.yml)
 fi
 if [[ "$ENABLE_NGROK" = "true" ]]; then
-  compose_args+=(--profile tunnel up -d)
+  compose_args+=(--profile tunnel)
+fi
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  compose_args+=(--profile runners)
+fi
+if [[ "$ENABLE_NGROK" = "true" || "$SCENARIO" = "C" ]]; then
+  compose_args+=(up -d)
 else
-  if [[ "$SCENARIO" = "C" ]]; then
-    compose_args+=(up -d)
-  else
+  if [[ "$ENABLE_RUNNERS" = "true" ]]; then
     compose_args+=(up -d postgres n8n task-runners)
+  else
+    compose_args+=(up -d postgres n8n)
   fi
 fi
 if [[ "$NO_PULL" -eq 1 ]]; then
   compose_args+=(--pull never)
 fi
-# Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
-compose_args+=(--build)
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  # Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
+  compose_args+=(--build)
+fi
 
 if [[ "$NO_PULL" -eq 1 ]]; then
   body "啟動 n8n（場景 ${SCENARIO}，不下載映像）..."

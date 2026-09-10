@@ -15,10 +15,11 @@ function Show-Usage {
 引導完成本機 n8n 啟動：
 
   1. 若尚無 .env，執行 create-envfile
-  2. 檢查環境（check-env）
-  3. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
-  4. 依 .env 啟動 container（start-local-n8n）
-  5. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
+  2. 詢問是否啟用 Code 節點 task runners 與套件清單
+  3. 檢查環境（check-env）
+  4. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
+  5. 依 .env 啟動 container（start-local-n8n）
+  6. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
 
 之後再執行本腳本，若映像已在本機，只會啟動既有 container，不會重新下載映像。
 
@@ -161,6 +162,148 @@ function Update-EnvVar([string]$Key, [string]$Value) {
         $out.Add($line)
     }
     [System.IO.File]::WriteAllText($EnvFile, (($out -join "`n") + "`n"), $Utf8NoBom)
+}
+
+function Write-Prompt([string]$Line1, [string]$Line2 = '') {
+    Write-Host $Line1 -ForegroundColor Magenta
+    if (-not [string]::IsNullOrEmpty($Line2)) {
+        Write-Host $Line2 -ForegroundColor Magenta -NoNewline
+        Write-Host ' ' -NoNewline
+    }
+}
+
+function Read-Visible([string]$Line1, [string]$Line2 = '') {
+    Write-Prompt $Line1 $Line2
+    return [Console]::ReadLine()
+}
+
+function Read-DefaultValue {
+    param(
+        [string]$Line1,
+        [string]$Line2,
+        [string]$Default
+    )
+    $value = Get-Sanitized (Read-Visible $Line1 $Line2)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        $value = $Default
+        Write-OkLine "已採用預設值 $value。"
+    }
+    Write-Host ''
+    return $value
+}
+
+function New-RunnersToken {
+    $chars = [char[]]((48..57) + (65..90) + (97..122))
+    return -join (1..32 | ForEach-Object { $chars | Get-Random })
+}
+
+function Apply-RunnersMode([string]$Enabled) {
+    if ($Enabled -eq 'true') {
+        Update-EnvVar 'ENABLE_N8N_RUNNERS' 'true'
+        Update-EnvVar 'N8N_RUNNERS_MODE' 'external'
+        Update-EnvVar 'N8N_NATIVE_PYTHON_RUNNER' 'true'
+        if (Test-Placeholder (Get-EnvValue 'N8N_RUNNERS_AUTH_TOKEN')) {
+            Update-EnvVar 'N8N_RUNNERS_AUTH_TOKEN' (New-RunnersToken)
+        }
+    }
+    else {
+        Update-EnvVar 'ENABLE_N8N_RUNNERS' 'false'
+        Update-EnvVar 'N8N_RUNNERS_MODE' 'internal'
+        Update-EnvVar 'N8N_NATIVE_PYTHON_RUNNER' 'false'
+    }
+}
+
+function Configure-Runners {
+    $current = (Get-EnvValue 'ENABLE_N8N_RUNNERS').ToLowerInvariant()
+    if ($current -in @('true', 'false')) {
+        Write-Section '【步驟 2】Code 節點與 task runners'
+        Apply-RunnersMode $current
+        if ($current -eq 'true') {
+            Write-OkLine '已啟用 task runners，將依 .env 建立映像並啟動 sidecar。'
+            Write-Muted '  若要關閉或改套件清單，請編輯 .env 後再執行本腳本。'
+        }
+        else {
+            Write-OkLine '未啟用 task runners，略過建立映像。'
+            Write-Muted '  若之後需要 Code 節點額外套件，請把 .env 的 ENABLE_N8N_RUNNERS 改成 true，或刪除該列後再啟動。'
+        }
+        Write-Host ''
+        return
+    }
+
+    Write-Section '【步驟 2】Code 節點與 task runners'
+    Write-Host ''
+    Write-Body 'Code 節點若要使用額外的 JavaScript / Python 套件（例如 pdf-lib、pymupdf），'
+    Write-Body '需要另外啟動 task runners，並建立含這些套件的映像。'
+    Write-Host ''
+    Write-Body '若你只編輯流程、不需要在 Code 節點安裝額外套件，建議關閉。'
+    Write-Body '關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。'
+    Write-Host ''
+
+    while ($true) {
+        $raw = Get-Sanitized (Read-Visible '是否啟用 task runners（Code 節點額外套件）？[Y/N]' '（直接按 Enter 採用預設值：停用）：')
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            Apply-RunnersMode 'false'
+            Write-WarnLine '已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。'
+            Write-Host ''
+            return
+        }
+        $normalized = $raw.ToLowerInvariant()
+        if ($normalized -in @('y', 'yes', 'true', '1', '是')) {
+            Apply-RunnersMode 'true'
+            Write-OkLine '已啟用 task runners。接下來請確認套件清單，直接按 Enter 即採用預設值。'
+            Write-Host ''
+            break
+        }
+        if ($normalized -in @('n', 'no', 'false', '0', '否')) {
+            Apply-RunnersMode 'false'
+            Write-WarnLine '已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。'
+            Write-Host ''
+            return
+        }
+        Write-WarnLine '無效的選項。請輸入 Y（啟用）或 N（停用）。'
+    }
+
+    $jsBuiltin = Get-EnvValue 'NODE_FUNCTION_ALLOW_BUILTIN'
+    $jsExternal = Get-EnvValue 'NODE_FUNCTION_ALLOW_EXTERNAL'
+    $pyStdlib = Get-EnvValue 'N8N_RUNNERS_STDLIB_ALLOW'
+    $pyPackages = Get-EnvValue 'N8N_RUNNERS_PY_PACKAGES'
+    $pyImports = Get-EnvValue 'N8N_RUNNERS_EXTERNAL_ALLOW'
+    if ([string]::IsNullOrWhiteSpace($jsBuiltin)) { $jsBuiltin = 'crypto' }
+    if ([string]::IsNullOrWhiteSpace($jsExternal)) { $jsExternal = 'pdf-lib' }
+    if ([string]::IsNullOrWhiteSpace($pyStdlib)) { $pyStdlib = '*' }
+    if ([string]::IsNullOrWhiteSpace($pyPackages)) { $pyPackages = 'pymupdf' }
+    if ([string]::IsNullOrWhiteSpace($pyImports)) { $pyImports = 'pymupdf,fitz' }
+
+    Write-Body 'JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。'
+    $jsBuiltin = Read-DefaultValue -Line1 '請輸入允許的內建模組（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${jsBuiltin}）：" -Default $jsBuiltin
+
+    Write-Body '要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。'
+    Write-Body '改過清單後，下次啟動會重建映像。'
+    $jsExternal = Read-DefaultValue -Line1 '請輸入要安裝的 npm 套件（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${jsExternal}）：" -Default $jsExternal
+
+    Write-Body 'Python Code 節點可使用的標準庫。填 * 代表全部開放。'
+    $pyStdlib = Read-DefaultValue -Line1 '請輸入 N8N_RUNNERS_STDLIB_ALLOW' -Line2 "（直接按 Enter 採用預設值 ${pyStdlib}）：" -Default $pyStdlib
+
+    Write-Body '要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。'
+    $pyPackages = Read-DefaultValue -Line1 '請輸入要安裝的 Python 套件（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${pyPackages}）：" -Default $pyPackages
+
+    Write-Body 'Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同'
+    Write-Body '（例如安裝 pymupdf，程式裡要 import fitz）。'
+    $pyImports = Read-DefaultValue -Line1 '請輸入允許 import 的模組（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${pyImports}）：" -Default $pyImports
+
+    Update-EnvVar 'NODE_FUNCTION_ALLOW_BUILTIN' $jsBuiltin
+    Update-EnvVar 'NODE_FUNCTION_ALLOW_EXTERNAL' $jsExternal
+    Update-EnvVar 'N8N_RUNNERS_STDLIB_ALLOW' $pyStdlib
+    Update-EnvVar 'N8N_RUNNERS_PY_PACKAGES' $pyPackages
+    Update-EnvVar 'N8N_RUNNERS_EXTERNAL_ALLOW' $pyImports
+
+    Write-OkLine 'task runners 套件設定已寫入 .env。'
+    Write-Muted "  JS 內建：$jsBuiltin"
+    Write-Muted "  JS 外部：$jsExternal"
+    Write-Muted "  Python 標準庫：$pyStdlib"
+    Write-Muted "  Python 安裝套件：$pyPackages"
+    Write-Muted "  Python 可 import：$pyImports"
+    Write-Host ''
 }
 
 function Write-Bootstrapped([string]$Scenario) {
@@ -439,8 +582,10 @@ else {
         Write-Err '仍找不到 .env，無法繼續。'
         exit 1
     }
-    Write-OkLine '設定已寫入，接著檢查環境並啟動 n8n。'
+    Write-OkLine '設定已寫入，接著設定 Code 節點並啟動 n8n。'
 }
+
+Configure-Runners
 
 $scenario = (Get-EnvValue 'N8N_SCENARIO').ToUpperInvariant()
 $n8nImage = Get-EnvValue 'N8N_IMAGE'
@@ -466,7 +611,7 @@ switch ($scenario) {
     }
 }
 
-Write-Section '【步驟 2】檢查環境'
+Write-Section '【步驟 3】檢查環境'
 if ($needSecrets) {
     Write-Muted "  場景 $scenario 首次或密鑰尚未寫入時，check-env 對密鑰的警告可先忽略，下一步會自動拉取。"
 }
@@ -479,7 +624,7 @@ if ($rc -ne 0) {
 
 $noPull = ((Test-DockerImage $n8nImage) -and ($bootstrapped -or (Test-ProjectContainers)))
 
-Write-Section '【步驟 3】雲端密鑰'
+Write-Section '【步驟 4】雲端密鑰'
 switch ($scenario) {
     { $_ -in @('B', 'C') } {
         Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
@@ -497,7 +642,7 @@ switch ($scenario) {
     }
 }
 
-Write-Section '【步驟 4】啟動 n8n'
+Write-Section '【步驟 5】啟動 n8n'
 if ($noPull) {
     Write-Body '偵測到先前已啟動過，且映像已在本機。此次只啟動 container，不下載映像。'
     $rc = Invoke-ProjectScript 'start-local-n8n.ps1' @('--no-pull')
@@ -518,7 +663,7 @@ $step5Summary = ''
 switch ($scenario) {
     'B' {
         if ($needSync) {
-            Write-Section '【步驟 5】雲端資料'
+            Write-Section '【步驟 6】雲端資料'
             Write-Body '場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。'
             $rc = Invoke-ProjectScript 'sync-from-cloud.ps1'
             if ($rc -ne 0) { exit $rc }
@@ -547,7 +692,7 @@ if (-not [string]::IsNullOrWhiteSpace($scenario)) {
 }
 
 Write-ReadyBanner
-Write-Section '【步驟 5】雲端資料'
+Write-Section '【步驟 6】雲端資料'
 Write-Body $step5Summary
 Write-Host ''
 Write-OkLine '────────────────────────────────────────────────────────────'
