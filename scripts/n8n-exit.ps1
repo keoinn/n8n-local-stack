@@ -29,3 +29,31 @@ function Exit-N8nScript {
     }
     exit $Code
 }
+
+# 父腳本用 `| Out-Host` 串接時，`& docker` 的 stdout 會變成管線，
+# compose 進度列會報「failed to get console」。Start-Process -NoNewWindow
+# 讓 docker 寫回原本的 cmd / Windows Terminal 視窗。
+function Invoke-DockerOnConsole {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$DockerArgs,
+        [string]$WorkingDirectory = '',
+        [switch]$PassThru
+    )
+    if ([string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+        $WorkingDirectory = (Get-Location).Path
+    }
+    $docker = (Get-Command docker -ErrorAction Stop).Source
+    $argList = @($DockerArgs | ForEach-Object { [string]$_ })
+    $p = Start-Process -FilePath $docker -ArgumentList $argList -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru
+    $code = 1
+    if ($p) {
+        $code = [int]$p.ExitCode
+    }
+    $global:LASTEXITCODE = $code
+    if ($PassThru) {
+        return $code
+    }
+    if ($code -ne 0) {
+        Exit-N8nScript $code
+    }
+}

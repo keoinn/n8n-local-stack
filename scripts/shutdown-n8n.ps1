@@ -25,12 +25,12 @@ foreach ($arg in $args) {
     switch ($arg) {
         { $_ -in @('-h', '--help', '/?') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
@@ -76,7 +76,7 @@ function Get-EnvValue([string]$Key) {
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
-    exit 1
+    Exit-N8nScript 1
 }
 
 Set-Location -LiteralPath $Root
@@ -101,10 +101,7 @@ Write-Body "停止容器（場景 $scenario）。資料、映像與 .env 都會�
 Write-Muted ("  docker " + ($composeArgs -join ' '))
 Write-Host ''
 
-& docker @composeArgs
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
+Invoke-DockerOnConsole -DockerArgs $composeArgs -WorkingDirectory $Root
 
 Write-Host ''
 Write-OkLine '────────────────────────────────────────────────────────────'

@@ -189,10 +189,7 @@ function Wait-ForService {
 }
 
 function Invoke-Docker([object[]]$DockerArgs) {
-    & docker @DockerArgs
-    if ($LASTEXITCODE -ne 0) {
-        Exit-N8nScript $LASTEXITCODE
-    }
+    Invoke-DockerOnConsole -DockerArgs $DockerArgs -WorkingDirectory $Root
 }
 
 $enableRunners = (Get-EnvValue 'ENABLE_N8N_RUNNERS').ToLowerInvariant()

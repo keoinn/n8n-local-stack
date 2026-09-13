@@ -2,6 +2,8 @@
 . (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$global:N8N_ORCHESTRATED = $true
+$env:N8N_ORCHESTRATED = '1'
 
 function Write-Err([string]$Message) {
     [Console]::Error.WriteLine($Message)
@@ -133,19 +135,30 @@ function Invoke-ToolScript {
     }
     Write-Host ''
 
-    # 另開行程，避免子腳本的 exit 結束整個工具選單。
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    if ($ScriptArgs.Count -gt 0) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $path @ScriptArgs
-    }
-    else {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $path
-    }
-    $code = $LASTEXITCODE
-    $ErrorActionPreference = $prev
-    if ($null -eq $code) {
+    # 必須在同一個主控台用 `&` 呼叫。另開 powershell.exe 時，雙擊 .cmd
+    # 會把子行程 stdin/stdout 接到管線，Write-Host / 確認提示不會出現在視窗裡。
+    # 子腳本 stdout 必須 Out-Host，否則 docker 輸出會變成回傳值。
+    $code = 0
+    try {
+        $global:LASTEXITCODE = 0
+        if ($ScriptArgs -and $ScriptArgs.Count -gt 0) {
+            & $path @ScriptArgs | Out-Host
+        }
+        else {
+            & $path | Out-Host
+        }
         $code = 0
+    }
+    catch {
+        $text = @($_.Exception.Message, [string]$_)
+        $joined = ($text -join "`n")
+        if ($joined -match 'n8n-script-exit:(\d+)') {
+            $code = [int]$Matches[1]
+        }
+        else {
+            Write-Err $_.Exception.Message
+            $code = 1
+        }
     }
     return [int]$code
 }

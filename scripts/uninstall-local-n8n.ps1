@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Set-Location -LiteralPath $Root
@@ -32,26 +33,23 @@ foreach ($arg in $args) {
         '--keep-images' { $KeepImages = $true }
         { $_ -in @('-h', '--help') } {
             Show-Usage
-            exit 0
+            Exit-N8nScript 0
         }
         default {
             Write-Err "未知參數：$arg"
             Show-Usage
-            exit 1
+            Exit-N8nScript 1
         }
     }
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
-    exit 1
+    Exit-N8nScript 1
 }
 
 function Invoke-Docker([object[]]$DockerArgs) {
-    & docker @DockerArgs
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+    Invoke-DockerOnConsole -DockerArgs $DockerArgs -WorkingDirectory $Root
 }
 
 $downArgs = @('compose', '--profile', 'tunnel', '--profile', 'runners', 'down', '--volumes', '--remove-orphans')
@@ -68,13 +66,13 @@ if (Test-Path -LiteralPath (Join-Path $Root 'compose.remote-supabase.yml')) {
 $projectContainers = @(docker ps -aq --filter 'label=com.docker.compose.project=n8n-local' | Where-Object { $_ })
 if ($projectContainers.Count -gt 0) {
     Write-Host '清除殘留 container ...'
-    docker rm -f @projectContainers
+    Invoke-Docker (@('rm', '-f') + $projectContainers)
 }
 
 $projectVolumes = @(docker volume ls -q --filter 'label=com.docker.compose.project=n8n-local' | Where-Object { $_ })
 if ($projectVolumes.Count -gt 0) {
     Write-Host '清除殘留 Docker volume ...'
-    docker volume rm @projectVolumes
+    Invoke-Docker (@('volume', 'rm') + $projectVolumes)
 }
 
 function Clear-BindMountDir([string]$Rel) {
