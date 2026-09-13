@@ -2,18 +2,18 @@
 # 停止本機 n8n 容器，保留資料、映像與 .env。相容 macOS 內建 Bash 3.2。
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${ROOT}/.env"
 
 usage() {
   cat <<'EOF'
 停止本機 n8n 容器（含 ngrok，若有啟動）。
 
-不會刪除 data/、映像或 .env。之後再開一次，執行同一支 ./start-n8n.sh 即可。
-若要拆掉環境並清空資料，請改用 ./uninstall-local-n8n.sh。
+不會刪除 data/、映像或 .env。之後再開一次，執行同一支 ./n8n-開關機(macOS).sh 即可。
+若要拆掉環境並清空資料，請改用 ./scripts/uninstall-local-n8n.sh。
 
 用法：
-  ./shutdown-n8n.sh
+  ./scripts/shutdown-n8n.sh
 EOF
 }
 
@@ -130,6 +130,6 @@ success "───────────────────────�
 success "  本機 n8n 已停止。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
-muted "之後再開一次，執行同一支 ./start-n8n.sh 即可。"
-muted "若要拆掉環境並清空資料，請執行 ./uninstall-local-n8n.sh"
+muted "之後再開一次，執行同一支 ./n8n-開關機(macOS).sh 即可。"
+muted "若要拆掉環境並清空資料，請執行 ./scripts/uninstall-local-n8n.sh"
 printf '\n'

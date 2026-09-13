@@ -20,7 +20,7 @@ function Show-Usage {
   2. N8N_SCENARIO 是否為 A / B / C
   3. 該場景必填變數是否已填（非空白、非範本值）
   4. Docker 是否安裝，且 daemon 是否在執行
-  5. 場景 B / C 是否已安裝 gcloud，並已登入
+  5. 場景 B / C：若雲端密鑰尚未寫入 .env，才檢查 gcloud 是否已安裝並登入
 
 用法：
   .\scripts\check-env.cmd
@@ -348,8 +348,14 @@ else {
 
 Write-Section '【Google Cloud SDK】'
 
+$secretsReady = (-not (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) -and -not (Test-Placeholder (Get-EnvValue 'CLOUD_DB_POSTGRESDB_HOST')))
+
 switch ($scenario) {
     { $_ -in @('B', 'C') } {
+        if ($secretsReady) {
+            Write-Skip "場景 $scenario 雲端密鑰已寫入 .env，略過 gcloud 檢查"
+            break
+        }
         $gcloudCmd = Get-Command gcloud -ErrorAction SilentlyContinue
         if ($gcloudCmd) {
             Write-Ok "gcloud 已安裝（$($gcloudCmd.Source)）"
@@ -420,15 +426,15 @@ if ($env:N8N_ORCHESTRATED -ne '1') {
         Write-Body '建議下一步：'
         if ($scenario -in @('B', 'C')) {
             Write-Muted '  .\scripts\pull-secrets.cmd'
-            Write-Muted '  完成後再執行 .\start-n8n.cmd'
+            Write-Muted '  完成後再執行 .\n8n-開關機(Win).cmd'
         }
         else {
-            Write-Muted '  .\start-n8n.cmd'
+            Write-Muted '  .\n8n-開關機(Win).cmd'
         }
     }
     else {
         Write-Body '建議下一步：'
-        Write-Muted '  .\start-n8n.cmd'
+        Write-Muted '  .\n8n-開關機(Win).cmd'
     }
     Write-Host ''
 }

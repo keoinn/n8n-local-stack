@@ -18,7 +18,7 @@ usage() {
   2. N8N_SCENARIO 是否為 A / B / C
   3. 該場景必填變數是否已填（非空白、非範本值）
   4. Docker 是否安裝，且 daemon 是否在執行
-  5. 場景 B / C 是否已安裝 gcloud，並已登入
+  5. 場景 B / C：若雲端密鑰尚未寫入 .env，才檢查 gcloud 是否已安裝並登入
 
 用法：
   ./scripts/check-env.sh
@@ -342,15 +342,18 @@ fi
 
 section "【Google Cloud SDK】"
 
+SECRETS_READY=0
+if ! is_placeholder "$(get_env_value N8N_ENCRYPTION_KEY)" \
+  && ! is_placeholder "$(get_env_value CLOUD_DB_POSTGRESDB_HOST)"; then
+  SECRETS_READY=1
+fi
+
 case "$SCENARIO" in
   B|C)
-    if command -v gcloud >/dev/null 2>&1; then
+    if [[ "$SECRETS_READY" -eq 1 ]]; then
+      skip_item "場景 ${SCENARIO} 雲端密鑰已寫入 .env，略過 gcloud 檢查"
+    elif command -v gcloud >/dev/null 2>&1; then
       ok "gcloud 已安裝（$(command -v gcloud)）"
-    else
-      fail_item "找不到 gcloud" "macOS 可執行：brew install --cask google-cloud-sdk"
-    fi
-
-    if command -v gcloud >/dev/null 2>&1; then
       gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -n 1 || true)"
       gcloud_account="$(sanitize_env_value "$gcloud_account")"
       if [[ -n "$gcloud_account" ]]; then
@@ -375,6 +378,7 @@ case "$SCENARIO" in
           ;;
       esac
     else
+      fail_item "找不到 gcloud" "macOS 可執行：brew install --cask google-cloud-sdk"
       skip_item "gcloud 登入與專案：因找不到 gcloud 而略過"
     fi
     ;;
@@ -418,15 +422,15 @@ if [[ "${N8N_ORCHESTRATED:-}" != "1" ]]; then
     case "$SCENARIO" in
       B|C)
         muted "  ./scripts/pull-secrets.sh"
-        muted "  完成後再執行 ./start-n8n.sh"
+        muted "  完成後再執行 ./n8n-開關機(macOS).sh"
         ;;
       *)
-        muted "  ./start-n8n.sh"
+        muted "  ./n8n-開關機(macOS).sh"
         ;;
     esac
   else
     body "建議下一步："
-    muted "  ./start-n8n.sh"
+    muted "  ./n8n-開關機(macOS).sh"
   fi
   printf '\n'
 fi

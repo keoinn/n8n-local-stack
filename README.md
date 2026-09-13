@@ -18,7 +18,7 @@
 
 若需要從外網接收 webhook（例如 Google OAuth 回呼），請準備 [ngrok](https://ngrok.com/) 的 Auth Token 與固定網域。`NGROK_DOMAIN` 只填網域，不要加 `https://`。若只在本機編輯、不需要對外 webhook，可以不啟用 ngrok。
 
-場景 B、C 還需要在這台電腦安裝 `gcloud`（請勿使用瀏覽器裡的 Cloud Shell），並能讀取 GCP 專案的 Secret Manager 與 Cloud Run。
+場景 B、C **第一次**還需要本機 `gcloud`（請勿使用瀏覽器裡的 Cloud Shell），並能讀取 GCP 專案的 Secret Manager 與 Cloud Run。密鑰寫進 `.env` 之後，再開機不會再檢查 gcloud，也不會再拉取密鑰。
 
 ```bash
 # Windows
@@ -42,33 +42,40 @@ gcloud config get-value project
 
 ## 開始使用
 
-請在專案根目錄執行啟動精靈。它會依序建立設定檔、檢查環境，再依場景啟動。
+請在專案根目錄執行開關機腳本。已有 `.env` 時，它是開關機入口：容器在跑就關閉，沒在跑就啟動。第一次沒有 `.env` 時，會先建立設定再啟動。
 
 ```bash
 # macOS / Linux
-./start-n8n.sh
+./n8n-開關機(macOS).sh
 
 # Windows（請用 .cmd，不要直接執行 .ps1）
-.\start-n8n.cmd
+.\n8n-開關機(Win).cmd
 ```
 
 macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cmd`。
 
-| 場景 | 啟動時會多做的事 |
-| --- | --- |
-| A | 啟動本機 Postgres 與 n8n |
-| B | 先取得雲端密鑰，啟動後再複製雲端資料 |
-| C | 先取得雲端密鑰並改連遠端資料庫，**不會**複製資料 |
+| 場景 | 第一次啟動 | 之後再開 |
+| --- | --- | --- |
+| A | 啟動本機 Postgres 與 n8n | 只啟動容器 |
+| B | 密鑰尚未寫入時才拉密鑰，再複製雲端資料 | 不查 gcloud、不拉密鑰、不自動再複製 |
+| C | 密鑰尚未寫入時才拉密鑰，並改連遠端資料庫 | 不查 gcloud、不拉密鑰；**不會**複製資料 |
 
-之後要再開一次，執行同一支腳本即可。映像檔若已在本機，只會啟動容器，不會重新下載。
+之後要開關機，執行同一支腳本即可。也可以用工具入口：
 
-啟動不會自動更新程式碼。若要從 `origin/main` 更新，請執行 `./update-n8n.sh`（Windows：`.\update-n8n.cmd`）。不會還原或丟棄你改過的檔案；`.env` 與 `data/` 不受影響。若偵測到本機改過專案檔，會停止更新。設定請只改 `.env`。
+```bash
+./n8n工具程式(macOS).sh              # Windows：.\n8n工具程式(Win).cmd
+./n8n工具程式(macOS).sh start
+```
 
-場景 B 第一次會複製雲端資料，之後再開不會自動再複製。若要再同步一次，請執行 `./scripts/sync-from-cloud.sh`（Windows：`.\scripts\sync-from-cloud.cmd`）。
+映像檔若已在本機，啟動時只會啟動容器，不會重新下載。task runners 映像若已建立且套件清單沒改，也不會重建。
 
-要關閉容器但保留資料、映像檔與設定檔，請執行 `./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）。
+啟動不會自動更新程式碼。若要從 `origin/main` 更新，請執行 `./n8n工具程式(macOS).sh update`（或 `./scripts/update-n8n.sh`）。不會還原或丟棄你改過的檔案；`.env` 與 `data/` 不受影響。若偵測到本機改過專案檔，會停止更新。設定請只改 `.env`。
 
-若曾執行卸載再重新啟動，會當成第一次：會再取得密鑰；場景 B 也會再複製雲端資料。
+場景 B 第一次會複製雲端資料，之後再開不會自動再複製。若要再同步一次，請執行 `./n8n工具程式(macOS).sh sync-from`（或 `./scripts/sync-from-cloud.sh`）。
+
+容器正在跑時再執行同一支開關機腳本就會關閉（保留資料、映像檔與 `.env`）。也可以執行 `./n8n工具程式(macOS).sh stop` 或 `./scripts/shutdown-n8n.sh`。
+
+若卸載時刪掉 `.env`，再啟動會當成第一次（場景 B / C 會再拉密鑰；場景 B 也會再複製資料）。若用 `--keep-env` 保留設定檔，密鑰不會重拉，但資料若已清空，場景 B 仍會再複製一次。
 
 ---
 
@@ -90,22 +97,22 @@ macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cm
 
 ```bash
 # macOS / Linux
-./scripts/sync-from-cloud.sh --credentials-only
+./n8n工具程式(macOS).sh sync-from --credentials-only
 
 # Windows
-.\scripts\sync-from-cloud.cmd --credentials-only
+.\n8n工具程式(Win).cmd sync-from --credentials-only
 ```
 
-完整同步會先清空本機對應資料再匯入。建議本機 n8n 版本與 Cloud Run 相同。
+完整同步會先清空本機對應資料再匯入。本機與 Cloud Run 必須是同一版 n8n（目前預設 `n8nio/n8n:2.36.8`）。雲端請勿用 `n8nio/n8n:latest`，否則 schema 不一致時場景 B 匯出會失敗。
 
 若要把本機改過的資料回寫到 Supabase（會覆寫雲端）：
 
 ```bash
 # macOS / Linux
-./scripts/sync-to-cloud.sh
+./n8n工具程式(macOS).sh sync-to
 
 # Windows
-.\scripts\sync-to-cloud.cmd
+.\n8n工具程式(Win).cmd sync-to
 ```
 
 回寫前請先把 Cloud Run 縮成 0 或暫停雲端流程。腳本會要求輸入 `WRITE` 才繼續；非互動環境請加 `--yes`。雲端工作流程的發布狀態會與本機相同。
@@ -124,7 +131,7 @@ macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cm
 
 ## 自行填寫設定檔
 
-若不想使用啟動精靈，可自行複製後填寫：
+若不想走開關機腳本的引導，可自行複製後填寫：
 
 ```bash
 # macOS / Linux
@@ -137,17 +144,19 @@ copy .env.example .env
 請依 `.env.example` 的區塊填寫：
 
 - 場景 A / B 要設定本機 `POSTGRES_PASSWORD`（不要填雲端資料庫密碼）。若要使用 ngrok，再填 `NGROK_AUTHTOKEN`、`NGROK_DOMAIN`。
-- 場景 B / C：填好 GCP 三項後，執行 `./scripts/pull-secrets.sh`（Windows：`.\scripts\pull-secrets.cmd`）。加密金鑰與雲端資料庫連線請勿手填。
+- 場景 B / C：填好 GCP 三項後，執行 `./n8n工具程式(macOS).sh pull-secrets`（或 `./scripts/pull-secrets.sh`）。加密金鑰與雲端資料庫連線請勿手填。寫入後再開機不必再跑。
 
 設定完成後，可檢查本機是否就緒：
 
 ```bash
 # macOS / Linux
-./scripts/check-env.sh
+./n8n工具程式(macOS).sh check-env
 
 # Windows
-.\scripts\check-env.cmd
+.\n8n工具程式(Win).cmd check-env
 ```
+
+場景 B / C 若 `.env` 已有加密金鑰與雲端資料庫主機，`check-env` 不會再檢查 gcloud。
 
 ---
 
@@ -177,21 +186,24 @@ https://<你的 ngrok 網域>
 ## 日常開關與卸載
 
 ```bash
-# 啟動（已啟動過則不會重新下載映像檔）
-./start-n8n.sh              # Windows：.\start-n8n.cmd
+# 開關機（有 .env 時：在跑就關、沒在跑就開）
+./n8n-開關機(macOS).sh              # Windows：.\n8n-開關機(Win).cmd
 
-# 關閉容器（保留資料、映像檔與 .env）
-./shutdown-n8n.sh           # Windows：.\shutdown-n8n.cmd
+# 工具入口（選單或指令）
+./n8n工具程式(macOS).sh              # Windows：.\n8n工具程式(Win).cmd
+./n8n工具程式(macOS).sh stop
+./n8n工具程式(macOS).sh update
+./n8n工具程式(macOS).sh uninstall --keep-env
 ```
 
-要移除這個專案的容器與映像檔，並清空 `data/`、`exports/` 與 `.env`（可用 `--keep-env` 保留設定檔）：
+`stop` / `update` / `uninstall` 也可直接跑 `scripts/` 底下的腳本。要移除這個專案的容器與映像檔，並清空 `data/`、`exports/` 與 `.env`（可用 `--keep-env` 保留設定檔）：
 
 ```bash
 # macOS / Linux
-./uninstall-local-n8n.sh
+./n8n工具程式(macOS).sh uninstall
 
 # Windows
-.\uninstall-local-n8n.cmd
+.\n8n工具程式(Win).cmd uninstall
 ```
 
 ---
@@ -214,7 +226,7 @@ https://<你的 ngrok 網域>
 
 多半是 `.env` 的 `NGROK_AUTHTOKEN` 或 `NGROK_DOMAIN` 還沒填，或仍是範本的 `YOUR_NGROK_*`。請到 [ngrok](https://ngrok.com/) 取得後寫進 `.env`，再執行一次啟動腳本。網域只要主機名，不要加 `https://`。
 
-若只在本機編輯、不需要對外 webhook，啟動精靈詢問是否啟用 ngrok 時請選擇停用。
+若只在本機編輯、不需要對外 webhook，第一次建立設定時詢問是否啟用 ngrok 請選擇停用。
 
 ### OAuth 重新導向網址仍是 `http://localhost:5678`
 

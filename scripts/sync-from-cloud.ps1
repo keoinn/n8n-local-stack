@@ -241,6 +241,43 @@ function Export-FromCloud([object[]]$ExportArgs) {
     Invoke-Docker $runArgs
 }
 
+function Ensure-CloudExportSchema {
+    if ($cloudSchema -notmatch '^[A-Za-z0-9_]+$') {
+        Write-Err "CLOUD_DB_POSTGRESDB_SCHEMA 含不合法字元：$cloudSchema"
+        Exit-N8nScript 1
+    }
+    Write-Host "檢查雲端 workflow_review_activity 是否與 $n8nImage 的匯出欄位一致 ..."
+    $sql = @"
+DO `$compat`$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = '$cloudSchema' AND table_name = 'workflow_review_activity'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = '$cloudSchema'
+      AND table_name = 'workflow_review_activity'
+      AND column_name = 'workflowId'
+  ) THEN
+    ALTER TABLE "$cloudSchema".workflow_review_activity
+      ADD COLUMN "workflowId" character varying(36) NULL;
+    RAISE NOTICE '已補上 workflow_review_activity.workflowId（可空），供本機 export:entities 使用。';
+  END IF;
+END
+`$compat`$;
+"@
+    $conn = "host=$($env:CLOUD_DB_POSTGRESDB_HOST) port=$($env:CLOUD_DB_POSTGRESDB_PORT) dbname=$($env:CLOUD_DB_POSTGRESDB_DATABASE) user=$($env:CLOUD_DB_POSTGRESDB_USER) sslmode=require"
+    Invoke-Docker @(
+        'run', '--rm',
+        '-e', "PGPASSWORD=$($env:CLOUD_DB_POSTGRESDB_PASSWORD)",
+        'postgres:15',
+        'psql',
+        '--set=ON_ERROR_STOP=1',
+        $conn,
+        '-c', $sql
+    )
+}
+
 if (-not $CredentialsOnly) {
     Write-Host '從 Supabase 匯出全部 entities ...'
     $entitiesDir = Join-Path $Root 'exports\entities'
@@ -248,6 +285,7 @@ if (-not $CredentialsOnly) {
         Remove-Item -LiteralPath $entitiesDir -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $entitiesDir | Out-Null
+    Ensure-CloudExportSchema
     Export-FromCloud @('export:entities', '--outputDir=/exports/entities')
 }
 

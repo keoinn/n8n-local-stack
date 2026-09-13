@@ -19,7 +19,7 @@ function Show-Usage {
 .env 與 data/ 不受影響。若偵測到本機改過專案檔，會停止更新。
 
 用法：
-  .\update-n8n.cmd
+  .\scripts\update-n8n.cmd
 '@ | Write-Host
 }
 
@@ -91,7 +91,7 @@ $status = @(git -C $Root status --porcelain --untracked-files=no 2>$null | Where
 $ErrorActionPreference = $prev
 if ($status.Count -gt 0) {
     Write-Err '偵測到本機改過專案檔，已停止更新以免覆蓋你的修改。'
-    Write-WarnLine '設定請只改 .env。若要更新，請先自行處理本機變更後再執行 .\update-n8n.cmd。'
+    Write-WarnLine '設定請只改 .env。若要更新，請先自行處理本機變更後再執行 .\scripts\update-n8n.cmd。'
     Exit-N8nScript 1
 }
 
@@ -140,5 +140,5 @@ else {
     Write-OkLine '────────────────────────────────────────────────────────────'
 }
 Write-Host ''
-Write-Muted '之後要啟動，請執行 .\start-n8n.cmd'
+Write-Muted '之後要啟動，請執行 .\n8n-開關機(Win).cmd'
 Write-Host ''

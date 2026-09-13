@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -13,11 +13,11 @@ function Show-Usage {
     @'
 停止本機 n8n 容器（含 ngrok，若有啟動）。
 
-不會刪除 data/、映像或 .env。之後再開一次，執行同一支 .\start-n8n.cmd 即可。
-若要拆掉環境並清空資料，請改用 .\uninstall-local-n8n.cmd。
+不會刪除 data/、映像或 .env。之後再開一次，執行同一支 .\n8n-開關機(Win).cmd 即可。
+若要拆掉環境並清空資料，請改用 .\scripts\uninstall-local-n8n.cmd。
 
 用法：
-  .\shutdown-n8n.cmd
+  .\scripts\shutdown-n8n.cmd
 '@ | Write-Host
 }
 
@@ -111,6 +111,6 @@ Write-OkLine '──────────────────────
 Write-OkLine '  本機 n8n 已停止。'
 Write-OkLine '────────────────────────────────────────────────────────────'
 Write-Host ''
-Write-Muted '之後再開一次，執行同一支 .\start-n8n.cmd 即可。'
-Write-Muted '若要拆掉環境並清空資料，請執行 .\uninstall-local-n8n.cmd'
+Write-Muted '之後再開一次，執行同一支 .\n8n-開關機(Win).cmd 即可。'
+Write-Muted '若要拆掉環境並清空資料，請執行 .\scripts\uninstall-local-n8n.cmd'
 Write-Host ''

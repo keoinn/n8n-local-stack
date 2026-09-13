@@ -43,7 +43,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -f "${ENV_FILE}" ]]; then
-  echo "找不到 ${ENV_FILE}，請先執行 ./start-n8n.sh 或 ./scripts/create-envfile.sh" >&2
+  echo "找不到 ${ENV_FILE}，請先執行 ./n8n-開關機(macOS).sh 或 ./scripts/create-envfile.sh" >&2
   exit 1
 fi
 

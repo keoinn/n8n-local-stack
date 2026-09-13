@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -105,6 +105,71 @@ function Ensure-RunnersAuthToken {
     }
 }
 
+$RunnersImageName = 'n8n-local-stack:runners'
+$RunnersStampFile = Join-Path $Root 'data\.runners-build-stamp'
+
+function Get-RunnersBuildFingerprint {
+    $parts = @(
+        (Get-EnvValue 'N8N_RUNNERS_IMAGE')
+        (Get-EnvValue 'NODE_FUNCTION_ALLOW_BUILTIN')
+        (Get-EnvValue 'NODE_FUNCTION_ALLOW_EXTERNAL')
+        (Get-EnvValue 'N8N_RUNNERS_PY_PACKAGES')
+        (Get-EnvValue 'N8N_RUNNERS_STDLIB_ALLOW')
+        (Get-EnvValue 'N8N_RUNNERS_EXTERNAL_ALLOW')
+        (Get-EnvValue 'N8N_RUNNERS_ALLOW_TRANSITIVE_IMPORTS')
+    )
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $buffer = New-Object System.IO.MemoryStream
+        $enc = [System.Text.UTF8Encoding]::new($false)
+        foreach ($part in $parts) {
+            $bytes = $enc.GetBytes(($part + "`n"))
+            $buffer.Write($bytes, 0, $bytes.Length)
+        }
+        foreach ($rel in @('docker/runners/Dockerfile', 'docker/runners/n8n-task-runners.json')) {
+            $path = Join-Path $Root $rel
+            if (Test-Path -LiteralPath $path) {
+                $fileBytes = [System.IO.File]::ReadAllBytes($path)
+                $buffer.Write($fileBytes, 0, $fileBytes.Length)
+            }
+        }
+        $hash = $sha.ComputeHash($buffer.ToArray())
+        return -join ($hash | ForEach-Object { $_.ToString('x2') })
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Write-RunnersStamp {
+    $dir = Split-Path -Parent $RunnersStampFile
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir | Out-Null
+    }
+    [System.IO.File]::WriteAllText($RunnersStampFile, ((Get-RunnersBuildFingerprint) + "`n"), $Utf8NoBom)
+}
+
+function Test-RunnersImage {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    docker image inspect $RunnersImageName *> $null
+    $ok = ($LASTEXITCODE -eq 0)
+    $ErrorActionPreference = $prev
+    return $ok
+}
+
+function Test-RunnersNeedsBuild {
+    if (-not (Test-RunnersImage)) {
+        return $true
+    }
+    if (-not (Test-Path -LiteralPath $RunnersStampFile)) {
+        return $false
+    }
+    $current = Get-RunnersBuildFingerprint
+    $stamp = ((Get-Content -LiteralPath $RunnersStampFile -Raw -ErrorAction SilentlyContinue) -replace '[\r\n]+', '').Trim()
+    return -not ($current -and $current -eq $stamp)
+}
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Err '找不到 docker。'
     Exit-N8nScript 1
@@ -159,8 +224,12 @@ if ($NoPull) {
     $composeArgs += @('--pull', 'never')
 }
 if ($enableRunners -eq 'true') {
-    # Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
-    $composeArgs += '--build'
+    if (Test-RunnersNeedsBuild) {
+        $composeArgs += '--build'
+    }
+    else {
+        Write-Host '  task-runners 映像已存在且套件清單未改，略過重建。' -ForegroundColor DarkGray
+    }
 }
 
 if ($NoPull) {
@@ -189,6 +258,9 @@ function Invoke-DockerOnConsole([string[]]$DockerArgs) {
 }
 
 Invoke-DockerOnConsole $composeArgs
+if ($enableRunners -eq 'true') {
+    Write-RunnersStamp
+}
 
 if ($enableNgrok -eq 'true' -and $env:N8N_ORCHESTRATED -ne '1') {
     & (Join-Path $PSScriptRoot 'check-ngrok-service.ps1') | Out-Host

@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# 可提交：README.md、compose*.yml、scripts/、根目錄 start-n8n.* / shutdown-n8n.* / uninstall-local-n8n.*、.env.example、本檔
+# 可提交：README.md、compose*.yml、scripts/、根目錄開關機與工具程式、.env.example、本檔
 # -----------------------------------------------------------------------------
 
 # 密鑰與本機設定（範本 .env.example 要進 git）
@@ -30,6 +30,9 @@ exports/*
 *.dump
 credentials.json
 credentials-plain.json
+
+# Node 工具（若本機曾安裝過）
+node_modules/
 
 # 系統與編輯器雜訊
 .DS_Store

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 引導建立設定、檢查環境，並依 .env 啟動本機 n8n（macOS / Linux）。
+# 本機 n8n 開關機入口（macOS / Linux）。
+# 已有 .env 且容器在跑 → 關閉；容器沒在跑 → 啟動。尚無 .env 則先建立再啟動。
 # 實際步驟委派 scripts/ 既有腳本。相容 macOS 內建 Bash 3.2。
 set -euo pipefail
 
@@ -9,19 +10,25 @@ MARKER_FILE="${ROOT}/data/.local-bootstrapped"
 
 usage() {
   cat <<'EOF'
-引導完成本機 n8n 啟動：
+本機 n8n 開關機入口：
 
-  1. 若尚無 .env，執行 create-envfile
+  • 已有 .env、容器正在跑 → 關閉容器（保留 data/、映像與 .env）後結束
+  • 已有 .env、容器沒在跑 → 啟動
+  • 尚無 .env → 先建立設定，再啟動
+
+啟動時會依序：
+
+  1. 檢查或建立 .env
   2. 詢問是否啟用 Code 節點 task runners 與套件清單
   3. 檢查環境（check-env）
   4. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
   5. 依 .env 啟動 container（start-local-n8n）
   6. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
 
-之後再執行本腳本，若映像已在本機，只會啟動既有 container，不會重新下載映像。
+之後再執行同一支腳本即可開關。映像已在本機時，啟動不會重新下載。
 
 用法：
-  ./start-n8n.sh
+  ./n8n-開關機(macOS).sh
 EOF
 }
 
@@ -461,6 +468,32 @@ project_has_containers() {
   [[ -n "$ids" ]]
 }
 
+project_is_running() {
+  local ids
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  ids="$(docker ps -q --filter 'label=com.docker.compose.project=n8n-local' 2>/dev/null || true)"
+  [[ -n "$ids" ]]
+}
+
+stop_running_stack() {
+  local scenario compose_args
+  scenario="$(get_env_value N8N_SCENARIO)"
+  scenario="$(printf '%s' "$scenario" | tr '[:lower:]' '[:upper:]')"
+  if [[ -z "$scenario" ]]; then
+    scenario="A"
+  fi
+  compose_args=(compose)
+  if [[ "$scenario" = "C" ]]; then
+    compose_args+=(-f compose.yml -f compose.remote-supabase.yml)
+  fi
+  compose_args+=(--profile tunnel --profile runners stop)
+  muted "  docker ${compose_args[*]}"
+  printf '\n'
+  docker "${compose_args[@]}"
+}
+
 image_exists() {
   local image="$1"
   docker image inspect "$image" >/dev/null 2>&1
@@ -469,23 +502,49 @@ image_exists() {
 export N8N_ORCHESTRATED=1
 cd "${ROOT}"
 
+HAD_ENV=0
+if [[ -f "$ENV_FILE" ]]; then
+  HAD_ENV=1
+fi
+
 printf '\n'
 title "════════════════════════════════════════════════════════════"
-title "  n8n 本機啟動精靈"
+title "  n8n 本機開關"
 title "════════════════════════════════════════════════════════════"
 
-section "【步驟 1】設定檔"
-if [[ -f "$ENV_FILE" ]]; then
-  success "已有 .env，略過建立。"
+section "【步驟 1】設定檔與執行狀態"
+if [[ "$HAD_ENV" -eq 1 ]]; then
+  success "已有 .env，判定為已初始化。"
   muted "  若要重建，請自行執行 ./scripts/create-envfile.sh"
 else
-  body "尚未找到 .env，開始引導建立。"
+  body "尚未找到 .env，判定為尚未初始化，開始引導建立。"
   run_script scripts/create-envfile.sh || exit 1
   if [[ ! -f "$ENV_FILE" ]]; then
     error "仍找不到 .env，無法繼續。"
     exit 1
   fi
-  success "設定已寫入，接著設定 Code 節點並啟動 n8n。"
+  success "設定已寫入，接著啟動 n8n。"
+fi
+
+if [[ "$HAD_ENV" -eq 1 ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    error "找不到 docker，無法檢查或關閉容器。"
+    exit 1
+  fi
+  if project_is_running; then
+    body "本機 n8n 正在執行，這次改為關閉。"
+    printf '\n'
+    stop_running_stack || exit 1
+    printf '\n'
+    success "────────────────────────────────────────────────────────────"
+    success "  本機 n8n 已停止。"
+    success "────────────────────────────────────────────────────────────"
+    printf '\n'
+    muted "資料、映像與 .env 都有保留。再執行一次同一支腳本即可啟動。"
+    printf '\n'
+    exit 0
+  fi
+  success "目前沒有正在執行的容器，這次改為啟動。"
 fi
 
 configure_runners
@@ -517,7 +576,7 @@ NEED_SECRETS=0
 NEED_SYNC=0
 case "$SCENARIO" in
   B)
-    if [[ "$BOOTSTRAPPED" -eq 0 || "$SECRETS_READY" -eq 0 ]]; then
+    if [[ "$SECRETS_READY" -eq 0 ]]; then
       NEED_SECRETS=1
     fi
     if [[ "$BOOTSTRAPPED" -eq 0 ]]; then
@@ -525,7 +584,7 @@ case "$SCENARIO" in
     fi
     ;;
   C)
-    if [[ "$BOOTSTRAPPED" -eq 0 || "$SECRETS_READY" -eq 0 ]]; then
+    if [[ "$SECRETS_READY" -eq 0 ]]; then
       NEED_SECRETS=1
     fi
     ;;
@@ -537,7 +596,7 @@ if [[ "$NEED_SECRETS" -eq 1 ]]; then
 fi
 printf '\n'
 if ! run_script scripts/check-env.sh; then
-  error "環境檢查未通過。請修正後再執行 ./start-n8n.sh"
+  error "環境檢查未通過。請修正後再執行 ./n8n-開關機(macOS).sh"
   exit 1
 fi
 
@@ -549,11 +608,15 @@ fi
 section "【步驟 4】雲端密鑰"
 case "$SCENARIO" in
   B|C)
-    body "場景 ${SCENARIO} 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
-    run_script scripts/pull-secrets.sh || exit 1
-    if is_placeholder "$(get_env_value N8N_ENCRYPTION_KEY)"; then
-      error "pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。"
-      exit 1
+    if [[ "$NEED_SECRETS" -eq 1 ]]; then
+      body "場景 ${SCENARIO} 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
+      run_script scripts/pull-secrets.sh || exit 1
+      if is_placeholder "$(get_env_value N8N_ENCRYPTION_KEY)"; then
+        error "pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。"
+        exit 1
+      fi
+    else
+      success "場景 ${SCENARIO} 雲端密鑰已在 .env，略過拉取。"
     fi
     ;;
   *)
@@ -610,6 +673,6 @@ success "───────────────────────�
 success "  啟動流程完成。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
-muted "之後只要再開一次，執行同一支 ./start-n8n.sh 即可。"
-muted "若要更新程式碼，請執行 ./update-n8n.sh。"
+muted "之後要開關機，執行同一支 ./n8n-開關機(macOS).sh 即可。"
+muted "若要更新程式碼，請執行 ./scripts/update-n8n.sh。"
 printf '\n'

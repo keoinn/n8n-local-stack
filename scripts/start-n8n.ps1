@@ -12,19 +12,25 @@ function Write-Err([string]$Message) {
 
 function Show-Usage {
     @'
-引導完成本機 n8n 啟動：
+本機 n8n 開關機入口：
 
-  1. 若尚無 .env，執行 create-envfile
+  • 已有 .env、容器正在跑 → 關閉容器（保留 data/、映像與 .env）後結束
+  • 已有 .env、容器沒在跑 → 啟動
+  • 尚無 .env → 先建立設定，再啟動
+
+啟動時會依序：
+
+  1. 檢查或建立 .env
   2. 詢問是否啟用 Code 節點 task runners 與套件清單
   3. 檢查環境（check-env）
   4. 場景 B / C：必要時拉取雲端密鑰（pull-secrets）
   5. 依 .env 啟動 container（start-local-n8n）
   6. 場景 B：首次啟動時同步雲端資料（sync-from-cloud）
 
-之後再執行本腳本，若映像已在本機，只會啟動既有 container，不會重新下載映像。
+之後再執行同一支腳本即可開關。映像已在本機時，啟動不會重新下載。
 
 用法：
-  .\start-n8n.cmd
+  .\n8n-開關機(Win).cmd
 '@ | Write-Host
 }
 
@@ -451,6 +457,40 @@ function Test-ProjectContainers {
     return ($ids.Count -gt 0)
 }
 
+function Test-ProjectRunning {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $ids = @(docker ps -q --filter 'label=com.docker.compose.project=n8n-local' 2>$null | Where-Object { $_ })
+    $ErrorActionPreference = $prev
+    return ($ids.Count -gt 0)
+}
+
+function Stop-RunningStack {
+    $scenario = (Get-EnvValue 'N8N_SCENARIO').ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($scenario)) {
+        $scenario = 'A'
+    }
+    $composeArgs = @('compose')
+    if ($scenario -eq 'C') {
+        $composeArgs += @('-f', 'compose.yml', '-f', 'compose.remote-supabase.yml')
+    }
+    $composeArgs += @('--profile', 'tunnel', '--profile', 'runners', 'stop')
+    Write-Muted ("  docker " + ($composeArgs -join ' '))
+    Write-Host ''
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & docker @composeArgs
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    if ($null -eq $code) {
+        $code = 0
+    }
+    return [int]$code
+}
+
 function Test-DockerImage([string]$Image) {
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
@@ -464,18 +504,20 @@ $global:N8N_ORCHESTRATED = $true
 $env:N8N_ORCHESTRATED = '1'
 Set-Location -LiteralPath $Root
 
+$hadEnv = Test-Path -LiteralPath $EnvFile
+
 Write-Host ''
 Write-Title '════════════════════════════════════════════════════════════'
-Write-Title '  n8n 本機啟動精靈'
+Write-Title '  n8n 本機開關'
 Write-Title '════════════════════════════════════════════════════════════'
 
-Write-Section '【步驟 1】設定檔'
-if (Test-Path -LiteralPath $EnvFile) {
-    Write-OkLine '已有 .env，略過建立。'
+Write-Section '【步驟 1】設定檔與執行狀態'
+if ($hadEnv) {
+    Write-OkLine '已有 .env，判定為已初始化。'
     Write-Muted '  若要重建，請自行執行 .\scripts\create-envfile.cmd'
 }
 else {
-    Write-Body '尚未找到 .env，開始引導建立。'
+    Write-Body '尚未找到 .env，判定為尚未初始化，開始引導建立。'
     $rc = Invoke-ProjectScript 'create-envfile.ps1'
     if ($rc -ne 0) {
         Write-Err "建立 .env 未完成（結束代碼 $rc）。"
@@ -485,7 +527,32 @@ else {
         Write-Err '仍找不到 .env，無法繼續。'
         exit 1
     }
-    Write-OkLine '設定已寫入，接著設定 Code 節點並啟動 n8n。'
+    Write-OkLine '設定已寫入，接著啟動 n8n。'
+}
+
+if ($hadEnv) {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Err '找不到 docker，無法檢查或關閉容器。'
+        exit 1
+    }
+    if (Test-ProjectRunning) {
+        Write-Body '本機 n8n 正在執行，這次改為關閉。'
+        Write-Host ''
+        $rc = Stop-RunningStack
+        if ($rc -ne 0) {
+            Write-Err "停止執行中的容器失敗（結束代碼 $rc）。"
+            exit $rc
+        }
+        Write-Host ''
+        Write-OkLine '────────────────────────────────────────────────────────────'
+        Write-OkLine '  本機 n8n 已停止。'
+        Write-OkLine '────────────────────────────────────────────────────────────'
+        Write-Host ''
+        Write-Muted '資料、映像與 .env 都有保留。再執行一次同一支腳本即可啟動。'
+        Write-Host ''
+        exit 0
+    }
+    Write-OkLine '目前沒有正在執行的容器，這次改為啟動。'
 }
 
 Configure-Runners
@@ -506,11 +573,11 @@ $needSecrets = $false
 $needSync = $false
 switch ($scenario) {
     'B' {
-        if (-not $bootstrapped -or -not $secretsReady) { $needSecrets = $true }
+        if (-not $secretsReady) { $needSecrets = $true }
         if (-not $bootstrapped) { $needSync = $true }
     }
     'C' {
-        if (-not $bootstrapped -or -not $secretsReady) { $needSecrets = $true }
+        if (-not $secretsReady) { $needSecrets = $true }
     }
 }
 
@@ -521,7 +588,7 @@ if ($needSecrets) {
 Write-Host ''
 $rc = Invoke-ProjectScript 'check-env.ps1'
 if ($rc -ne 0) {
-    Write-Err '環境檢查未通過。請修正後再執行 .\start-n8n.cmd'
+    Write-Err '環境檢查未通過。請修正後再執行 .\n8n-開關機(Win).cmd'
     exit $rc
 }
 
@@ -530,12 +597,17 @@ $noPull = ((Test-DockerImage $n8nImage) -and ($bootstrapped -or (Test-ProjectCon
 Write-Section '【步驟 4】雲端密鑰'
 switch ($scenario) {
     { $_ -in @('B', 'C') } {
-        Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
-        $rc = Invoke-ProjectScript 'pull-secrets.ps1'
-        if ($rc -ne 0) { exit $rc }
-        if (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) {
-            Write-Err 'pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。'
-            exit 1
+        if ($needSecrets) {
+            Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
+            $rc = Invoke-ProjectScript 'pull-secrets.ps1'
+            if ($rc -ne 0) { exit $rc }
+            if (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) {
+                Write-Err 'pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。'
+                exit 1
+            }
+        }
+        else {
+            Write-OkLine "場景 $scenario 雲端密鑰已在 .env，略過拉取。"
         }
     }
     default {
@@ -602,6 +674,6 @@ Write-OkLine '──────────────────────
 Write-OkLine '  啟動流程完成。'
 Write-OkLine '────────────────────────────────────────────────────────────'
 Write-Host ''
-Write-Muted '之後只要再開一次，執行同一支 .\start-n8n.cmd 即可。'
-Write-Muted '若要更新程式碼，請執行 .\update-n8n.cmd。'
+Write-Muted '之後要開關機，執行同一支 .\n8n-開關機(Win).cmd 即可。'
+Write-Muted '若要更新程式碼，請執行 .\scripts\update-n8n.cmd。'
 Write-Host ''

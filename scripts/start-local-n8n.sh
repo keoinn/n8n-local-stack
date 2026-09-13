@@ -162,6 +162,59 @@ ensure_runners_auth_token() {
   esac
 }
 
+RUNNERS_IMAGE_NAME="n8n-local-stack:runners"
+RUNNERS_STAMP_FILE="${ROOT}/data/.runners-build-stamp"
+
+hash_lines() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    cksum | awk '{print $1"-"$2}'
+  fi
+}
+
+runners_build_fingerprint() {
+  {
+    printf '%s\n' \
+      "$(get_env_value N8N_RUNNERS_IMAGE)" \
+      "$(get_env_value NODE_FUNCTION_ALLOW_BUILTIN)" \
+      "$(get_env_value NODE_FUNCTION_ALLOW_EXTERNAL)" \
+      "$(get_env_value N8N_RUNNERS_PY_PACKAGES)" \
+      "$(get_env_value N8N_RUNNERS_STDLIB_ALLOW)" \
+      "$(get_env_value N8N_RUNNERS_EXTERNAL_ALLOW)" \
+      "$(get_env_value N8N_RUNNERS_ALLOW_TRANSITIVE_IMPORTS)"
+    cat "${ROOT}/docker/runners/Dockerfile" "${ROOT}/docker/runners/n8n-task-runners.json" 2>/dev/null || true
+  } | hash_lines
+}
+
+write_runners_stamp() {
+  mkdir -p "${ROOT}/data"
+  runners_build_fingerprint > "${RUNNERS_STAMP_FILE}"
+}
+
+runners_image_exists() {
+  docker image inspect "${RUNNERS_IMAGE_NAME}" >/dev/null 2>&1
+}
+
+runners_needs_build() {
+  local stamp current
+  if ! runners_image_exists; then
+    return 0
+  fi
+  current="$(runners_build_fingerprint)"
+  if [[ ! -f "${RUNNERS_STAMP_FILE}" ]]; then
+    # 舊環境還沒有戳記：沿用現有映像，啟動成功後再寫入。
+    return 1
+  fi
+  stamp="$(tr -d '\r\n' < "${RUNNERS_STAMP_FILE}")"
+  if [[ -n "$current" && "$current" = "$stamp" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 if ! command -v docker >/dev/null 2>&1; then
   error "找不到 docker。"
   exit 1
@@ -221,8 +274,12 @@ if [[ "$NO_PULL" -eq 1 ]]; then
   compose_args+=(--pull never)
 fi
 if [[ "$ENABLE_RUNNERS" = "true" ]]; then
-  # Code 節點外部套件寫在 runners 映像裡；--build 有快取，套件清單沒改時幾乎不會重裝。
-  compose_args+=(--build)
+  # 套件清單與 Dockerfile 沒變、映像已在時略過 --build，避免每次重啟都走一遍 build。
+  if runners_needs_build; then
+    compose_args+=(--build)
+  else
+    muted "  task-runners 映像已存在且套件清單未改，略過重建。"
+  fi
 fi
 
 if [[ "$NO_PULL" -eq 1 ]]; then
@@ -233,6 +290,9 @@ fi
 muted "  docker ${compose_args[*]}"
 printf '\n'
 docker "${compose_args[@]}"
+if [[ "$ENABLE_RUNNERS" = "true" ]]; then
+  write_runners_stamp
+fi
 
 if [[ "$ENABLE_NGROK" = "true" && "${N8N_ORCHESTRATED:-}" != "1" ]]; then
   "${ROOT}/scripts/check-ngrok-service.sh" || true

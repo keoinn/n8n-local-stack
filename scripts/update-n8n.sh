@@ -3,7 +3,7 @@
 # 不會改 .env 或 data/。若本機改過專案檔，會停止以免覆蓋。
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UPDATE_REF="${N8N_UPDATE_REF:-main}"
 
 usage() {
@@ -14,7 +14,7 @@ usage() {
 .env 與 data/ 不受影響。若偵測到本機改過專案檔，會停止更新。
 
 用法：
-  ./update-n8n.sh
+  ./scripts/update-n8n.sh
 EOF
 }
 
@@ -99,7 +99,7 @@ body "正在從 origin/${UPDATE_REF} 更新專案 ..."
 
 if has_local_tracked_changes; then
   error "偵測到本機改過專案檔，已停止更新以免覆蓋你的修改。"
-  warn "設定請只改 .env。若要更新，請先自行處理本機變更後再執行 ./update-n8n.sh。"
+  warn "設定請只改 .env。若要更新，請先自行處理本機變更後再執行 ./scripts/update-n8n.sh。"
   exit 1
 fi
 
@@ -137,5 +137,5 @@ else
   success "────────────────────────────────────────────────────────────"
 fi
 printf '\n'
-muted "之後要啟動，請執行 ./start-n8n.sh"
+muted "之後要啟動，請執行 ./n8n-開關機(macOS).sh"
 printf '\n'

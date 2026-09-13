@@ -157,11 +157,54 @@ export_from_cloud() {
     "$@"
 }
 
+# 本機 n8n 2.36 的 export:entities 會 SELECT workflow_review_activity."workflowId"。
+# Cloud Run 若用較早 migration 建表，這欄不存在，整次匯出會停在：
+# column "workflowId" does not exist
+ensure_cloud_export_schema() {
+  local schema sql
+  schema="${CLOUD_DB_POSTGRESDB_SCHEMA:-public}"
+  case "$schema" in
+    *[!a-zA-Z0-9_]* )
+      echo "CLOUD_DB_POSTGRESDB_SCHEMA 含不合法字元：${schema}" >&2
+      exit 1
+      ;;
+  esac
+  echo "檢查雲端 workflow_review_activity 是否與 ${N8N_IMAGE} 的匯出欄位一致 ..."
+  sql="$(cat <<SQL
+DO \$compat\$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = '${schema}' AND table_name = 'workflow_review_activity'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = '${schema}'
+      AND table_name = 'workflow_review_activity'
+      AND column_name = 'workflowId'
+  ) THEN
+    ALTER TABLE "${schema}".workflow_review_activity
+      ADD COLUMN "workflowId" character varying(36) NULL;
+    RAISE NOTICE '已補上 workflow_review_activity.workflowId（可空），供本機 export:entities 使用。';
+  END IF;
+END
+\$compat\$;
+SQL
+)"
+  docker run --rm \
+    -e "PGPASSWORD=${CLOUD_DB_POSTGRESDB_PASSWORD}" \
+    postgres:15 \
+    psql \
+    --set=ON_ERROR_STOP=1 \
+    "host=${CLOUD_DB_POSTGRESDB_HOST} port=${CLOUD_DB_POSTGRESDB_PORT} dbname=${CLOUD_DB_POSTGRESDB_DATABASE} user=${CLOUD_DB_POSTGRESDB_USER} sslmode=require" \
+    -c "${sql}"
+}
+
 if [[ "${CREDENTIALS_ONLY}" -eq 0 ]]; then
   echo "從 Supabase 匯出全部 entities ..."
   rm -rf "${ROOT}/exports/entities"
   mkdir -p "${ROOT}/exports/entities"
   chmod 777 "${ROOT}/exports/entities" 2>/dev/null || true
+  ensure_cloud_export_schema
   export_from_cloud export:entities --outputDir=/exports/entities
 fi
 

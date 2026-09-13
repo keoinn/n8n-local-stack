@@ -103,7 +103,7 @@ function Import-DotEnv([string]$Path) {
 }
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
-    Write-Err "找不到 $EnvFile，請先執行 .\start-n8n.cmd 或 .\scripts\create-envfile.cmd"
+    Write-Err "找不到 $EnvFile，請先執行 .\n8n-開關機(Win).cmd 或 .\scripts\create-envfile.cmd"
     Exit-N8nScript 1
 }
 
