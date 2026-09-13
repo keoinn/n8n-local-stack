@@ -1,4 +1,4 @@
-# n8n-local-stack v1.0.0
+# n8n-local-stack v1.1.0
 
 用 Docker 在自己的電腦跑 n8n。資料存在專案的 `data/`。依資料要放哪裡，分成三種場景。
 
