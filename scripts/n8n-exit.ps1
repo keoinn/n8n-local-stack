@@ -20,11 +20,41 @@ function Set-N8nConsoleUtf8 {
 
 Set-N8nConsoleUtf8
 
+function Test-N8nOrchestrated {
+    return (($env:N8N_ORCHESTRATED -eq '1') -or ($true -eq $global:N8N_ORCHESTRATED))
+}
+
 function Exit-N8nScript {
     param([int]$Code = 0)
     $global:LASTEXITCODE = $Code
-    $orchestrated = ($env:N8N_ORCHESTRATED -eq '1') -or ($true -eq $global:N8N_ORCHESTRATED)
-    if ($orchestrated) {
+    if (Test-N8nOrchestrated) {
+        throw "n8n-script-exit:$Code"
+    }
+    exit $Code
+}
+
+# 開關機等「會再串接子腳本」的入口：先記住自己是不是被工具選單呼叫，
+# 再打開 orchestration。自己結束時用 Exit-N8nHost，被選單呼叫才 throw；
+# 雙擊 .cmd 時改 exit，避免把 n8n-script-exit:0 噴到畫面上。
+function Enable-N8nOrchestration {
+    if ($null -eq $script:N8nOrchestrationParent) {
+        $script:N8nOrchestrationParent = Test-N8nOrchestrated
+    }
+    $global:N8N_ORCHESTRATED = $true
+    $env:N8N_ORCHESTRATED = '1'
+}
+
+function Exit-N8nHost {
+    param([int]$Code = 0)
+    $fromParent = $false
+    if ($null -ne $script:N8nOrchestrationParent) {
+        $fromParent = [bool]$script:N8nOrchestrationParent
+    }
+    else {
+        $fromParent = Test-N8nOrchestrated
+    }
+    $global:LASTEXITCODE = $Code
+    if ($fromParent) {
         throw "n8n-script-exit:$Code"
     }
     exit $Code

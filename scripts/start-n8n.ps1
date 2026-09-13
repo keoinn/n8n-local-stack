@@ -492,8 +492,7 @@ function Test-DockerImage([string]$Image) {
     return $ok
 }
 
-$global:N8N_ORCHESTRATED = $true
-$env:N8N_ORCHESTRATED = '1'
+Enable-N8nOrchestration
 Set-Location -LiteralPath $Root
 
 $hadEnv = Test-Path -LiteralPath $EnvFile
@@ -513,11 +512,11 @@ else {
     $rc = Invoke-ProjectScript 'create-envfile.ps1'
     if ($rc -ne 0) {
         Write-Err "建立 .env 未完成（結束代碼 $rc）。"
-        Exit-N8nScript $rc
+        Exit-N8nHost $rc
     }
     if (-not (Test-Path -LiteralPath $EnvFile)) {
         Write-Err '仍找不到 .env，無法繼續。'
-        Exit-N8nScript 1
+        Exit-N8nHost 1
     }
     Write-OkLine '設定已寫入，接著啟動 n8n。'
 }
@@ -525,7 +524,7 @@ else {
 if ($hadEnv) {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Err '找不到 docker，無法檢查或關閉容器。'
-        Exit-N8nScript 1
+        Exit-N8nHost 1
     }
     if (Test-ProjectRunning) {
         Write-Body '本機 n8n 正在執行，這次改為關閉。'
@@ -533,7 +532,7 @@ if ($hadEnv) {
         $rc = Stop-RunningStack
         if ($rc -ne 0) {
             Write-Err "停止執行中的容器失敗（結束代碼 $rc）。"
-            Exit-N8nScript $rc
+            Exit-N8nHost $rc
         }
         Write-Host ''
         Write-OkLine '────────────────────────────────────────────────────────────'
@@ -542,7 +541,7 @@ if ($hadEnv) {
         Write-Host ''
         Write-Muted '資料、映像與 .env 都有保留。再執行一次同一支腳本即可啟動。'
         Write-Host ''
-        Exit-N8nScript 0
+        Exit-N8nHost 0
     }
     Write-OkLine '目前沒有正在執行的容器，這次改為啟動。'
 }
@@ -581,7 +580,7 @@ Write-Host ''
 $rc = Invoke-ProjectScript 'check-env.ps1'
 if ($rc -ne 0) {
     Write-Err '環境檢查未通過。請修正後再執行 .\n8n-開關機(Win).cmd'
-    Exit-N8nScript $rc
+    Exit-N8nHost $rc
 }
 
 $noPull = ((Test-DockerImage $n8nImage) -and ($bootstrapped -or (Test-ProjectContainers)))
@@ -592,10 +591,10 @@ switch ($scenario) {
         if ($needSecrets) {
             Write-Body "場景 $scenario 需要 encryption key 與雲端資料庫連線，開始拉取密鑰。"
             $rc = Invoke-ProjectScript 'pull-secrets.ps1'
-            if ($rc -ne 0) { Exit-N8nScript $rc }
+            if ($rc -ne 0) { Exit-N8nHost $rc }
             if (Test-Placeholder (Get-EnvValue 'N8N_ENCRYPTION_KEY')) {
                 Write-Err 'pull-secrets 完成後 N8N_ENCRYPTION_KEY 仍是空的，無法繼續。'
-                Exit-N8nScript 1
+                Exit-N8nHost 1
             }
         }
         else {
@@ -613,12 +612,12 @@ Write-Section '【步驟 5】啟動 n8n'
 if ($noPull) {
     Write-Body '偵測到先前已啟動過，且映像已在本機。此次只啟動 container，不下載映像。'
     $rc = Invoke-ProjectScript 'start-local-n8n.ps1' @('--no-pull')
-    if ($rc -ne 0) { Exit-N8nScript $rc }
+    if ($rc -ne 0) { Exit-N8nHost $rc }
 }
 else {
     Write-Body '依 .env 啟動容器；本機沒有的映像會在此時下載。'
     $rc = Invoke-ProjectScript 'start-local-n8n.ps1'
-    if ($rc -ne 0) { Exit-N8nScript $rc }
+    if ($rc -ne 0) { Exit-N8nHost $rc }
 }
 
 $enableNgrok = (Get-EnvValue 'ENABLE_NGROK').ToLowerInvariant()
@@ -633,7 +632,7 @@ switch ($scenario) {
             Write-Section '【步驟 6】雲端資料'
             Write-Body '場景 B 首次啟動：將 Cloud Run 資料複製到本機 Postgres。'
             $rc = Invoke-ProjectScript 'sync-from-cloud.ps1'
-            if ($rc -ne 0) { Exit-N8nScript $rc }
+            if ($rc -ne 0) { Exit-N8nHost $rc }
             $step5Summary = '場景 B 已將 Cloud Run 資料複製到本機。'
             try { Write-Bootstrapped $scenario } catch { Write-WarnLine "無法寫入啟動紀錄：$($_.Exception.Message)" }
         }
