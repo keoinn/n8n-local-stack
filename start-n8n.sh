@@ -185,6 +185,11 @@ generate_runners_token() {
   printf '%s' "$pw"
 }
 
+next_runner_step() {
+  RUNNER_STEP=$((RUNNER_STEP + 1))
+  RUNNER_STEP_PREFIX="【步驟 2-${RUNNER_STEP}】"
+}
+
 apply_runners_mode() {
   local enabled="$1"
   if [[ "$enabled" = "true" ]]; then
@@ -229,8 +234,11 @@ configure_runners() {
   body "關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。"
   printf '\n'
 
+  RUNNER_STEP=0
+  RUNNER_STEP_PREFIX=""
+  next_runner_step
   while :; do
-    print_prompt "是否啟用 task runners（Code 節點額外套件）？[Y/N]" "（直接按 Enter 採用預設值：停用）："
+    print_prompt "${RUNNER_STEP_PREFIX}是否啟用 task runners（Code 節點額外套件）？[Y/N]" "（直接按 Enter 採用預設值：停用）："
     raw="$(normalize_bool "$(read_line)")"
     if [[ -z "$raw" ]]; then
       apply_runners_mode false
@@ -270,38 +278,43 @@ configure_runners() {
   [[ -n "$py_imports" ]] || py_imports="pymupdf,fitz"
 
   body "JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。"
+  next_runner_step
   read_with_default \
-    "請輸入允許的內建模組（逗號分隔）" \
+    "${RUNNER_STEP_PREFIX}請輸入允許的內建模組（逗號分隔）" \
     "（直接按 Enter 採用預設值 ${js_builtin}）：" \
     "$js_builtin" \
     js_builtin
 
   body "要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。"
   body "改過清單後，下次啟動會重建映像。"
+  next_runner_step
   read_with_default \
-    "請輸入要安裝的 npm 套件（逗號分隔）" \
+    "${RUNNER_STEP_PREFIX}請輸入要安裝的 npm 套件（逗號分隔）" \
     "（直接按 Enter 採用預設值 ${js_external}）：" \
     "$js_external" \
     js_external
 
   body "Python Code 節點可使用的標準庫。填 * 代表全部開放。"
+  next_runner_step
   read_with_default \
-    "請輸入 N8N_RUNNERS_STDLIB_ALLOW" \
+    "${RUNNER_STEP_PREFIX}請輸入 N8N_RUNNERS_STDLIB_ALLOW" \
     "（直接按 Enter 採用預設值 ${py_stdlib}）：" \
     "$py_stdlib" \
     py_stdlib
 
   body "要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。"
+  next_runner_step
   read_with_default \
-    "請輸入要安裝的 Python 套件（逗號分隔）" \
+    "${RUNNER_STEP_PREFIX}請輸入要安裝的 Python 套件（逗號分隔）" \
     "（直接按 Enter 採用預設值 ${py_packages}）：" \
     "$py_packages" \
     py_packages
 
   body "Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同"
   body "（例如安裝 pymupdf，程式裡要 import fitz）。"
+  next_runner_step
   read_with_default \
-    "請輸入允許 import 的模組（逗號分隔）" \
+    "${RUNNER_STEP_PREFIX}請輸入允許 import 的模組（逗號分隔）" \
     "（直接按 Enter 採用預設值 ${py_imports}）：" \
     "$py_imports" \
     py_imports
@@ -453,86 +466,6 @@ image_exists() {
   docker image inspect "$image" >/dev/null 2>&1
 }
 
-UPDATE_REF="${N8N_UPDATE_REF:-main}"
-
-print_git_install_hint() {
-  warn "目前無法自動更新程式碼。"
-  warn "若要更新，請先安裝 git 原始碼控制工具："
-  printf '%b\n' "  ${C_CYAN}https://git-scm.com/${C_RESET}"
-  printf '\n'
-}
-
-has_local_tracked_changes() {
-  local status
-  status="$(git -C "${ROOT}" status --porcelain --untracked-files=no 2>/dev/null || true)"
-  [[ -n "$status" ]]
-}
-
-update_project_if_possible() {
-  if [[ "${N8N_SKIP_SELF_UPDATE:-}" = "1" ]]; then
-    return 0
-  fi
-
-  printf '\n'
-  if ! command -v git >/dev/null 2>&1; then
-    print_git_install_hint
-    return 0
-  fi
-  if ! git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    print_git_install_hint
-    return 0
-  fi
-
-  body "正在從 origin/${UPDATE_REF} 更新專案 ..."
-
-  if has_local_tracked_changes; then
-    warn "偵測到本機改過專案檔，已略過自動更新以免覆蓋你的修改。"
-    warn "設定請只改 .env。若要更新，請先自行處理本機變更後再啟動。"
-    printf '\n'
-    return 0
-  fi
-
-  local before after current_branch
-  before="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
-
-  if ! git -C "${ROOT}" fetch origin "${UPDATE_REF}"; then
-    warn "更新失敗，將以目前的程式碼繼續啟動。"
-    printf '\n'
-    return 0
-  fi
-
-  # 暫時略過切回 main，方便在 feature/allow-external-lib 上測試。
-  # current_branch="$(git -C "${ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  # if [[ "$current_branch" != "$UPDATE_REF" ]]; then
-  #   if ! git -C "${ROOT}" checkout -q "${UPDATE_REF}"; then
-  #     if ! git -C "${ROOT}" checkout -q -B "${UPDATE_REF}" "origin/${UPDATE_REF}"; then
-  #       warn "無法切換到 ${UPDATE_REF}，將以目前的程式碼繼續啟動。"
-  #       printf '\n'
-  #       return 0
-  #     fi
-  #   fi
-  # fi
-
-  if ! git -C "${ROOT}" merge --ff-only "origin/${UPDATE_REF}"; then
-    warn "無法快轉到 origin/${UPDATE_REF}，將以目前的程式碼繼續啟動。"
-    printf '\n'
-    return 0
-  fi
-
-  after="$(git -C "${ROOT}" rev-parse HEAD 2>/dev/null || true)"
-  if [[ -n "$before" && "$before" = "$after" ]]; then
-    success "專案已是最新。"
-    printf '\n'
-    return 0
-  fi
-
-  success "專案已更新。"
-  trap - EXIT
-  N8N_SKIP_SELF_UPDATE=1 exec "${ROOT}/start-n8n.sh" "$@"
-}
-
-update_project_if_possible
-
 export N8N_ORCHESTRATED=1
 cd "${ROOT}"
 
@@ -678,4 +611,5 @@ success "  啟動流程完成。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
 muted "之後只要再開一次，執行同一支 ./start-n8n.sh 即可。"
+muted "若要更新程式碼，請執行 ./update-n8n.sh。"
 printf '\n'

@@ -29,7 +29,7 @@ cd n8n-local-stack
 - ngrok 預設關閉；需要對外 webhook / OAuth 時再開
 - 關閉容器：`./shutdown-n8n.sh`（Windows：`.\shutdown-n8n.cmd`）
 - 卸載：`./uninstall-local-n8n.sh`（Windows：`.\uninstall-local-n8n.cmd`）
-- 之後再開會從 `origin/main` 更新程式碼。不會還原本機改過的檔案；若偵測到專案檔有修改，會略過更新
+- 之後再開不會自動更新程式碼。要更新請執行 `./update-n8n.sh`（Windows：`.\update-n8n.cmd`）。不會還原本機改過的檔案；若偵測到專案檔有修改，會停止更新
 
 ## 使用前請準備
 
@@ -43,9 +43,11 @@ cd n8n-local-stack
 
 - 場景 C 與線上共用同一顆資料庫，兩邊同時開著可能重複觸發
 - 免費 ngrok 固定網域同時只能一台使用；被佔用時本機會停掉 tunnel，仍可用 localhost 編輯
-- 請只改 `.env`。改腳本或 `compose.yml` 會讓自動更新略過
+- 請只改 `.env`。改腳本或 `compose.yml` 會讓 `./update-n8n.sh` 停止更新
 - 建議本機 n8n 映像版本與 Cloud Run 相同（目前預設 `n8nio/n8n:2.36.8`）
 
 ## 之後更新
 
 再執行同一支啟動腳本即可。映像若已在本機，只會啟動容器，不會重新下載。
+
+要更新專案程式碼，請執行 `./update-n8n.sh`（Windows：`.\update-n8n.cmd`）。

@@ -20,7 +20,7 @@ function Show-Usage {
   2. 由 .env.example 複製出新的 .env
   3. 詢問部署場景與是否啟用 ngrok，並寫入對應變數
   4. 依場景以互動方式填入必要機密資訊
-  5. Code 節點 task runners 會在之後執行 .\start-n8n.cmd 時再詢問
+  5. 詢問是否啟用 Code 節點 task runners 與套件清單
 
 用法：
   .\scripts\create-envfile.cmd
@@ -103,6 +103,11 @@ function Read-Visible([string]$Line1, [string]$Line2 = '') {
 function Get-Step3Prefix {
     $script:Step3++
     return "【步驟 3-$($script:Step3)】"
+}
+
+function Get-Step4Prefix {
+    $script:Step4++
+    return "【步驟 4-$($script:Step4)】"
 }
 
 function Read-RequiredValue {
@@ -344,10 +349,95 @@ if ($EnableNgrok -eq 'true') {
     }
 }
 
+Write-Section '【步驟 4】Code 節點與 task runners'
+Write-Host ''
+Write-Body 'Code 節點若要使用額外的 JavaScript / Python 套件（例如 pdf-lib、pymupdf），'
+Write-Body '需要另外啟動 task runners，並建立含這些套件的映像。'
+Write-Host ''
+Write-Body '若你只編輯流程、不需要在 Code 節點安裝額外套件，建議關閉。'
+Write-Body '關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。'
+Write-Host ''
+
+$EnableRunners = ''
+$script:Step4 = 0
+while ($true) {
+    $prefix = Get-Step4Prefix
+    $raw = Get-Sanitized (Read-Visible "${prefix}是否啟用 task runners（Code 節點額外套件）？[Y/N]" '（直接按 Enter 採用預設值：停用）：')
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        $EnableRunners = 'false'
+        break
+    }
+    $normalized = $raw.ToLowerInvariant()
+    if ($normalized -in @('y', 'yes', 'true', '1', '是')) {
+        $EnableRunners = 'true'
+        break
+    }
+    if ($normalized -in @('n', 'no', 'false', '0', '否')) {
+        $EnableRunners = 'false'
+        break
+    }
+    Write-WarnLine '無效的選項。請輸入 Y（啟用）或 N（停用）。'
+}
+
+$JsBuiltin = ''
+$JsExternal = ''
+$PyStdlib = ''
+$PyPackages = ''
+$PyImports = ''
+if ($EnableRunners -eq 'true') {
+    Write-Ok '已啟用 task runners。接下來請確認套件清單，直接按 Enter 即採用預設值。'
+    Write-Host ''
+    $JsBuiltin = 'crypto'
+    $JsExternal = 'pdf-lib'
+    $PyStdlib = '*'
+    $PyPackages = 'pymupdf'
+    $PyImports = 'pymupdf,fitz'
+
+    Write-Body 'JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。'
+    $prefix = Get-Step4Prefix
+    $JsBuiltin = Read-DefaultValue -Line1 "${prefix}請輸入允許的內建模組（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${JsBuiltin}）：" -Default $JsBuiltin
+
+    Write-Body '要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。'
+    Write-Body '改過清單後，下次啟動會重建映像。'
+    $prefix = Get-Step4Prefix
+    $JsExternal = Read-DefaultValue -Line1 "${prefix}請輸入要安裝的 npm 套件（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${JsExternal}）：" -Default $JsExternal
+
+    Write-Body 'Python Code 節點可使用的標準庫。填 * 代表全部開放。'
+    $prefix = Get-Step4Prefix
+    $PyStdlib = Read-DefaultValue -Line1 "${prefix}請輸入 N8N_RUNNERS_STDLIB_ALLOW" -Line2 "（直接按 Enter 採用預設值 ${PyStdlib}）：" -Default $PyStdlib
+
+    Write-Body '要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。'
+    $prefix = Get-Step4Prefix
+    $PyPackages = Read-DefaultValue -Line1 "${prefix}請輸入要安裝的 Python 套件（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${PyPackages}）：" -Default $PyPackages
+
+    Write-Body 'Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同'
+    Write-Body '（例如安裝 pymupdf，程式裡要 import fitz）。'
+    $prefix = Get-Step4Prefix
+    $PyImports = Read-DefaultValue -Line1 "${prefix}請輸入允許 import 的模組（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${PyImports}）：" -Default $PyImports
+}
+else {
+    Write-WarnLine '已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。'
+    Write-Host ''
+}
+
 Update-EnvVar 'N8N_SCENARIO' $Scenario
 Update-EnvVar 'ENABLE_NGROK' $EnableNgrok
 Update-EnvVar 'N8N_LOCAL_BOOTSTRAPPED' ''
-Update-EnvVar 'N8N_RUNNERS_AUTH_TOKEN' (New-RunnersToken)
+Update-EnvVar 'ENABLE_N8N_RUNNERS' $EnableRunners
+if ($EnableRunners -eq 'true') {
+    Update-EnvVar 'N8N_RUNNERS_MODE' 'external'
+    Update-EnvVar 'N8N_NATIVE_PYTHON_RUNNER' 'true'
+    Update-EnvVar 'N8N_RUNNERS_AUTH_TOKEN' (New-RunnersToken)
+    Update-EnvVar 'NODE_FUNCTION_ALLOW_BUILTIN' $JsBuiltin
+    Update-EnvVar 'NODE_FUNCTION_ALLOW_EXTERNAL' $JsExternal
+    Update-EnvVar 'N8N_RUNNERS_STDLIB_ALLOW' $PyStdlib
+    Update-EnvVar 'N8N_RUNNERS_PY_PACKAGES' $PyPackages
+    Update-EnvVar 'N8N_RUNNERS_EXTERNAL_ALLOW' $PyImports
+}
+else {
+    Update-EnvVar 'N8N_RUNNERS_MODE' 'internal'
+    Update-EnvVar 'N8N_NATIVE_PYTHON_RUNNER' 'false'
+}
 
 if ($PostgresPassword) {
     Update-EnvVar 'POSTGRES_PASSWORD' $PostgresPassword
@@ -374,7 +464,15 @@ Write-Host ''
 Write-Body '寫入摘要（機密值不會顯示）：'
 Write-SummaryItem 'N8N_SCENARIO' $Scenario
 Write-SummaryItem 'ENABLE_NGROK' $EnableNgrok
-Write-SummaryItem 'N8N_RUNNERS_AUTH_TOKEN' '（已產生）'
+Write-SummaryItem 'ENABLE_N8N_RUNNERS' $EnableRunners
+if ($EnableRunners -eq 'true') {
+    Write-SummaryItem 'N8N_RUNNERS_AUTH_TOKEN' '（已產生）'
+    Write-SummaryItem 'NODE_FUNCTION_ALLOW_BUILTIN' $JsBuiltin
+    Write-SummaryItem 'NODE_FUNCTION_ALLOW_EXTERNAL' $JsExternal
+    Write-SummaryItem 'N8N_RUNNERS_STDLIB_ALLOW' $PyStdlib
+    Write-SummaryItem 'N8N_RUNNERS_PY_PACKAGES' $PyPackages
+    Write-SummaryItem 'N8N_RUNNERS_EXTERNAL_ALLOW' $PyImports
+}
 if ($Scenario -in @('A', 'B')) {
     Write-SummaryItem 'POSTGRES_PASSWORD' '（已設定）'
 }

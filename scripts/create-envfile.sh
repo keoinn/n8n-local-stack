@@ -17,7 +17,7 @@ usage() {
   2. 由 .env.example 複製出新的 .env
   3. 詢問部署場景與是否啟用 ngrok，並寫入對應變數
   4. 依場景以互動方式填入必要機密資訊
-  5. Code 節點 task runners 會在之後執行 ./start-n8n.sh 時再詢問
+  5. 詢問是否啟用 Code 節點 task runners 與套件清單
 
 用法：
   ./scripts/create-envfile.sh
@@ -127,6 +127,11 @@ print_summary_item() {
 next_step3() {
   STEP3=$((STEP3 + 1))
   STEP3_PREFIX="【步驟 3-${STEP3}】"
+}
+
+next_step4() {
+  STEP4=$((STEP4 + 1))
+  STEP4_PREFIX="【步驟 4-${STEP4}】"
 }
 
 read_required() {
@@ -278,6 +283,17 @@ print_ngrok_help() {
   printf '\n'
 }
 
+print_runners_help() {
+  section "【步驟 4】Code 節點與 task runners"
+  printf '\n'
+  body "Code 節點若要使用額外的 JavaScript / Python 套件（例如 pdf-lib、pymupdf），"
+  body "需要另外啟動 task runners，並建立含這些套件的映像。"
+  printf '\n'
+  body "若你只編輯流程、不需要在 Code 節點安裝額外套件，建議關閉。"
+  body "關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。"
+  printf '\n'
+}
+
 print_secrets_help() {
   section "【步驟 3】填寫場景 ${SCENARIO} 所需設定"
   printf '\n'
@@ -415,10 +431,91 @@ if [[ "$ENABLE_NGROK" = "true" ]]; then
   done
 fi
 
+print_runners_help
+ENABLE_N8N_RUNNERS=""
+STEP4=0
+STEP4_PREFIX=""
+next_step4
+while :; do
+  print_prompt "${STEP4_PREFIX}是否啟用 task runners（Code 節點額外套件）？[Y/N]" "（直接按 Enter 採用預設值：停用）："
+  raw="$(read_line)"
+  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "$raw" ]]; then
+    ENABLE_N8N_RUNNERS="false"
+    break
+  fi
+  case "$raw" in
+    y|yes|true|1|是)
+      ENABLE_N8N_RUNNERS="true"
+      break
+      ;;
+    n|no|false|0|否)
+      ENABLE_N8N_RUNNERS="false"
+      break
+      ;;
+    *)
+      warn "無效的選項。請輸入 Y（啟用）或 N（停用）。"
+      ;;
+  esac
+done
+
+JS_BUILTIN=""
+JS_EXTERNAL=""
+PY_STDLIB=""
+PY_PACKAGES=""
+PY_IMPORTS=""
+if [[ "$ENABLE_N8N_RUNNERS" = "true" ]]; then
+  success "已啟用 task runners。接下來請確認套件清單，直接按 Enter 即採用預設值。"
+  printf '\n'
+  js_builtin="crypto"
+  js_external="pdf-lib"
+  py_stdlib="*"
+  py_packages="pymupdf"
+  py_imports="pymupdf,fitz"
+
+  body "JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。"
+  next_step4
+  read_with_default "${STEP4_PREFIX}請輸入允許的內建模組（逗號分隔）" "（直接按 Enter 採用預設值 ${js_builtin}）：" "$js_builtin" JS_BUILTIN
+
+  body "要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。"
+  body "改過清單後，下次啟動會重建映像。"
+  next_step4
+  read_with_default "${STEP4_PREFIX}請輸入要安裝的 npm 套件（逗號分隔）" "（直接按 Enter 採用預設值 ${js_external}）：" "$js_external" JS_EXTERNAL
+
+  body "Python Code 節點可使用的標準庫。填 * 代表全部開放。"
+  next_step4
+  read_with_default "${STEP4_PREFIX}請輸入 N8N_RUNNERS_STDLIB_ALLOW" "（直接按 Enter 採用預設值 ${py_stdlib}）：" "$py_stdlib" PY_STDLIB
+
+  body "要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。"
+  next_step4
+  read_with_default "${STEP4_PREFIX}請輸入要安裝的 Python 套件（逗號分隔）" "（直接按 Enter 採用預設值 ${py_packages}）：" "$py_packages" PY_PACKAGES
+
+  body "Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同"
+  body "（例如安裝 pymupdf，程式裡要 import fitz）。"
+  next_step4
+  read_with_default "${STEP4_PREFIX}請輸入允許 import 的模組（逗號分隔）" "（直接按 Enter 採用預設值 ${py_imports}）：" "$py_imports" PY_IMPORTS
+else
+  warn "已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。"
+  printf '\n'
+fi
+
 upsert_env N8N_SCENARIO "$SCENARIO"
 upsert_env ENABLE_NGROK "$ENABLE_NGROK"
 upsert_env N8N_LOCAL_BOOTSTRAPPED ""
-upsert_env N8N_RUNNERS_AUTH_TOKEN "$(generate_runners_token)"
+upsert_env ENABLE_N8N_RUNNERS "$ENABLE_N8N_RUNNERS"
+if [[ "$ENABLE_N8N_RUNNERS" = "true" ]]; then
+  upsert_env N8N_RUNNERS_MODE external
+  upsert_env N8N_NATIVE_PYTHON_RUNNER true
+  upsert_env N8N_RUNNERS_AUTH_TOKEN "$(generate_runners_token)"
+  upsert_env NODE_FUNCTION_ALLOW_BUILTIN "$JS_BUILTIN"
+  upsert_env NODE_FUNCTION_ALLOW_EXTERNAL "$JS_EXTERNAL"
+  upsert_env N8N_RUNNERS_STDLIB_ALLOW "$PY_STDLIB"
+  upsert_env N8N_RUNNERS_PY_PACKAGES "$PY_PACKAGES"
+  upsert_env N8N_RUNNERS_EXTERNAL_ALLOW "$PY_IMPORTS"
+else
+  upsert_env N8N_RUNNERS_MODE internal
+  upsert_env N8N_NATIVE_PYTHON_RUNNER false
+fi
 
 if [[ -n "$POSTGRES_PASSWORD" ]]; then
   upsert_env POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
@@ -444,7 +541,15 @@ printf '\n'
 body "寫入摘要（機密值不會顯示）："
 print_summary_item "N8N_SCENARIO" "$SCENARIO"
 print_summary_item "ENABLE_NGROK" "$ENABLE_NGROK"
-print_summary_item "N8N_RUNNERS_AUTH_TOKEN" "（已產生）"
+print_summary_item "ENABLE_N8N_RUNNERS" "$ENABLE_N8N_RUNNERS"
+if [[ "$ENABLE_N8N_RUNNERS" = "true" ]]; then
+  print_summary_item "N8N_RUNNERS_AUTH_TOKEN" "（已產生）"
+  print_summary_item "NODE_FUNCTION_ALLOW_BUILTIN" "$JS_BUILTIN"
+  print_summary_item "NODE_FUNCTION_ALLOW_EXTERNAL" "$JS_EXTERNAL"
+  print_summary_item "N8N_RUNNERS_STDLIB_ALLOW" "$PY_STDLIB"
+  print_summary_item "N8N_RUNNERS_PY_PACKAGES" "$PY_PACKAGES"
+  print_summary_item "N8N_RUNNERS_EXTERNAL_ALLOW" "$PY_IMPORTS"
+fi
 case "$SCENARIO" in
   A|B) print_summary_item "POSTGRES_PASSWORD" "（已設定）" ;;
 esac

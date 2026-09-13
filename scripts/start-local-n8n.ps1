@@ -172,10 +172,23 @@ else {
 Write-Host ("  docker " + ($composeArgs -join ' ')) -ForegroundColor DarkGray
 Write-Host ''
 
-& docker @composeArgs
-if ($LASTEXITCODE -ne 0) {
-    Exit-N8nScript $LASTEXITCODE
+# start-n8n.ps1 用 `| Out-Host` 呼叫本腳本時，PowerShell 會把 stdout 變成管線。
+# docker compose --build 的 TTY 進度列需要真實 Win32 console；走管線就會
+# 「failed to get console: The handle is invalid」。
+# Start-Process -NoNewWindow 讓 docker 寫回原本的 cmd 視窗，進度列可保留。
+function Invoke-DockerOnConsole([string[]]$DockerArgs) {
+    $docker = (Get-Command docker -ErrorAction Stop).Source
+    $p = Start-Process -FilePath $docker -ArgumentList $DockerArgs -WorkingDirectory $Root -NoNewWindow -Wait -PassThru
+    if ($null -eq $p -or $p.ExitCode -ne 0) {
+        $code = 1
+        if ($p) {
+            $code = [int]$p.ExitCode
+        }
+        Exit-N8nScript $code
+    }
 }
+
+Invoke-DockerOnConsole $composeArgs
 
 if ($enableNgrok -eq 'true' -and $env:N8N_ORCHESTRATED -ne '1') {
     & (Join-Path $PSScriptRoot 'check-ngrok-service.ps1') | Out-Host

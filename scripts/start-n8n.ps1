@@ -213,6 +213,11 @@ function Apply-RunnersMode([string]$Enabled) {
     }
 }
 
+function Get-RunnerStepPrefix {
+    $script:RunnerStep++
+    return "【步驟 2-$($script:RunnerStep)】"
+}
+
 function Configure-Runners {
     $current = (Get-EnvValue 'ENABLE_N8N_RUNNERS').ToLowerInvariant()
     if ($current -in @('true', 'false')) {
@@ -239,8 +244,10 @@ function Configure-Runners {
     Write-Body '關閉後不會下載 runners 基底映像，也不會建立自訂映像，啟動較快。'
     Write-Host ''
 
+    $script:RunnerStep = 0
     while ($true) {
-        $raw = Get-Sanitized (Read-Visible '是否啟用 task runners（Code 節點額外套件）？[Y/N]' '（直接按 Enter 採用預設值：停用）：')
+        $prefix = Get-RunnerStepPrefix
+        $raw = Get-Sanitized (Read-Visible "${prefix}是否啟用 task runners（Code 節點額外套件）？[Y/N]" '（直接按 Enter 採用預設值：停用）：')
         if ([string]::IsNullOrWhiteSpace($raw)) {
             Apply-RunnersMode 'false'
             Write-WarnLine '已停用 task runners。Code 節點只能使用 n8n 內建能力，不會建立 runners 映像。'
@@ -275,21 +282,26 @@ function Configure-Runners {
     if ([string]::IsNullOrWhiteSpace($pyImports)) { $pyImports = 'pymupdf,fitz' }
 
     Write-Body 'JavaScript Code 節點可 require 的 Node 內建模組。多數情況保留 crypto 即可。'
-    $jsBuiltin = Read-DefaultValue -Line1 '請輸入允許的內建模組（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${jsBuiltin}）：" -Default $jsBuiltin
+    $prefix = Get-RunnerStepPrefix
+    $jsBuiltin = Read-DefaultValue -Line1 "${prefix}請輸入允許的內建模組（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${jsBuiltin}）：" -Default $jsBuiltin
 
     Write-Body '要預先裝進 runners 映像、供 JavaScript Code 節點使用的 npm 套件。'
     Write-Body '改過清單後，下次啟動會重建映像。'
-    $jsExternal = Read-DefaultValue -Line1 '請輸入要安裝的 npm 套件（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${jsExternal}）：" -Default $jsExternal
+    $prefix = Get-RunnerStepPrefix
+    $jsExternal = Read-DefaultValue -Line1 "${prefix}請輸入要安裝的 npm 套件（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${jsExternal}）：" -Default $jsExternal
 
     Write-Body 'Python Code 節點可使用的標準庫。填 * 代表全部開放。'
-    $pyStdlib = Read-DefaultValue -Line1 '請輸入 N8N_RUNNERS_STDLIB_ALLOW' -Line2 "（直接按 Enter 採用預設值 ${pyStdlib}）：" -Default $pyStdlib
+    $prefix = Get-RunnerStepPrefix
+    $pyStdlib = Read-DefaultValue -Line1 "${prefix}請輸入 N8N_RUNNERS_STDLIB_ALLOW" -Line2 "（直接按 Enter 採用預設值 ${pyStdlib}）：" -Default $pyStdlib
 
     Write-Body '要 pip 安裝進映像的 Python 套件名稱（安裝名，例如 pymupdf）。'
-    $pyPackages = Read-DefaultValue -Line1 '請輸入要安裝的 Python 套件（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${pyPackages}）：" -Default $pyPackages
+    $prefix = Get-RunnerStepPrefix
+    $pyPackages = Read-DefaultValue -Line1 "${prefix}請輸入要安裝的 Python 套件（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${pyPackages}）：" -Default $pyPackages
 
     Write-Body 'Python Code 節點允許 import 的模組名稱。安裝名與 import 名可能不同'
     Write-Body '（例如安裝 pymupdf，程式裡要 import fitz）。'
-    $pyImports = Read-DefaultValue -Line1 '請輸入允許 import 的模組（逗號分隔）' -Line2 "（直接按 Enter 採用預設值 ${pyImports}）：" -Default $pyImports
+    $prefix = Get-RunnerStepPrefix
+    $pyImports = Read-DefaultValue -Line1 "${prefix}請輸入允許 import 的模組（逗號分隔）" -Line2 "（直接按 Enter 採用預設值 ${pyImports}）：" -Default $pyImports
 
     Update-EnvVar 'NODE_FUNCTION_ALLOW_BUILTIN' $jsBuiltin
     Update-EnvVar 'NODE_FUNCTION_ALLOW_EXTERNAL' $jsExternal
@@ -448,115 +460,6 @@ function Test-DockerImage([string]$Image) {
     return $ok
 }
 
-function Invoke-Git {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$GitArgs,
-        [switch]$Quiet
-    )
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    if ($Quiet) {
-        & git -C $Root @GitArgs *> $null
-    }
-    else {
-        & git -C $Root @GitArgs
-    }
-    $code = $LASTEXITCODE
-    $ErrorActionPreference = $prev
-    return [int]$code
-}
-
-function Update-ProjectIfPossible {
-    if ($env:N8N_SKIP_SELF_UPDATE -eq '1') {
-        return
-    }
-
-    $updateRef = 'main'
-    if (-not [string]::IsNullOrWhiteSpace($env:N8N_UPDATE_REF)) {
-        $updateRef = $env:N8N_UPDATE_REF.Trim()
-    }
-
-    Write-Host ''
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-WarnLine '目前無法自動更新程式碼。'
-        Write-WarnLine '若要更新，請先安裝 git 原始碼控制工具：'
-        Write-Host '  https://git-scm.com/' -ForegroundColor Cyan
-        Write-Host ''
-        return
-    }
-
-    $inside = Invoke-Git -Quiet -GitArgs @('rev-parse', '--is-inside-work-tree')
-    if ($inside -ne 0) {
-        Write-WarnLine '目前無法自動更新程式碼。'
-        Write-WarnLine '若要更新，請先安裝 git 原始碼控制工具：'
-        Write-Host '  https://git-scm.com/' -ForegroundColor Cyan
-        Write-Host ''
-        return
-    }
-
-    Write-Body "正在從 origin/$updateRef 更新專案 ..."
-
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $status = @(git -C $Root status --porcelain --untracked-files=no 2>$null | Where-Object { $_.Trim() -ne '' })
-    $ErrorActionPreference = $prev
-    if ($status.Count -gt 0) {
-        Write-WarnLine '偵測到本機改過專案檔，已略過自動更新以免覆蓋你的修改。'
-        Write-WarnLine '設定請只改 .env。若要更新，請先自行處理本機變更後再啟動。'
-        Write-Host ''
-        return
-    }
-
-    $before = ''
-    $ErrorActionPreference = 'Continue'
-    $before = ((git -C $Root rev-parse HEAD 2>$null) | Out-String).Trim()
-    $ErrorActionPreference = $prev
-
-    if ((Invoke-Git -GitArgs @('fetch', 'origin', $updateRef)) -ne 0) {
-        Write-WarnLine '更新失敗，將以目前的程式碼繼續啟動。'
-        Write-Host ''
-        return
-    }
-
-    $branch = ''
-    $ErrorActionPreference = 'Continue'
-    $branch = ((git -C $Root rev-parse --abbrev-ref HEAD 2>$null) | Out-String).Trim()
-    $ErrorActionPreference = $prev
-    if ($branch -ne $updateRef) {
-        if ((Invoke-Git -GitArgs @('checkout', '-q', $updateRef)) -ne 0) {
-            if ((Invoke-Git -GitArgs @('checkout', '-q', '-B', $updateRef, "origin/$updateRef")) -ne 0) {
-                Write-WarnLine "無法切換到 $updateRef，將以目前的程式碼繼續啟動。"
-                Write-Host ''
-                return
-            }
-        }
-    }
-
-    if ((Invoke-Git -GitArgs @('merge', '--ff-only', "origin/$updateRef")) -ne 0) {
-        Write-WarnLine "無法快轉到 origin/$updateRef，將以目前的程式碼繼續啟動。"
-        Write-Host ''
-        return
-    }
-
-    $after = ''
-    $ErrorActionPreference = 'Continue'
-    $after = ((git -C $Root rev-parse HEAD 2>$null) | Out-String).Trim()
-    $ErrorActionPreference = $prev
-    if ($before -and ($before -eq $after)) {
-        Write-OkLine '專案已是最新。'
-        Write-Host ''
-        return
-    }
-
-    Write-OkLine '專案已更新。'
-    $env:N8N_SKIP_SELF_UPDATE = '1'
-    & $PSCommandPath @args
-    exit $LASTEXITCODE
-}
-
-Update-ProjectIfPossible
-
 $global:N8N_ORCHESTRATED = $true
 $env:N8N_ORCHESTRATED = '1'
 Set-Location -LiteralPath $Root
@@ -700,4 +603,5 @@ Write-OkLine '  啟動流程完成。'
 Write-OkLine '────────────────────────────────────────────────────────────'
 Write-Host ''
 Write-Muted '之後只要再開一次，執行同一支 .\start-n8n.cmd 即可。'
+Write-Muted '若要更新程式碼，請執行 .\update-n8n.cmd。'
 Write-Host ''
