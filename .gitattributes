@@ -1,3 +1,4 @@
 *.sh text eol=lf
+# Windows PowerShell 5.1 沒有 BOM 會用系統編碼讀檔，中文字串會被拆掉。
 *.ps1 text eol=crlf
 *.cmd text eol=crlf

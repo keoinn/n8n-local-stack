@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'n8n-exit.ps1')
 
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
