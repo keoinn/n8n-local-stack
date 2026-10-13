@@ -23,8 +23,10 @@ usage() {
 流程：
   1. 檢查 Docker、n8n 容器是否在跑，以及 .env 是否已完成場景設定
   2. 若 n8n 正在跑，先停止 n8n（ngrok 若在跑會一併停止；Postgres 保留）
-  3. 互動修改 NGROK_AUTHTOKEN、NGROK_DOMAIN，並把 ENABLE_NGROK 設為 true
-  4. 重新建立並啟動 n8n 與 ngrok（只 restart 不會套用新網址）
+  3. 先詢問是否開啟 ngrok
+     Y：改寫 NGROK_AUTHTOKEN、NGROK_DOMAIN，並把 ENABLE_NGROK 設為 true
+     N：ENABLE_NGROK 設為 false，NGROK_AUTHTOKEN 與 NGROK_DOMAIN 清空
+  4. 重新建立並啟動 n8n（只 restart 不會套用新網址）
 
 用法：
   ./n8n-設定ngrok(Ubuntu).sh
@@ -364,7 +366,7 @@ if [[ "$CHECK_OK" -eq 0 ]]; then
 fi
 
 if [[ ! -t 0 ]]; then
-  error "這個腳本需要在終端機互動輸入 Token 與網域。"
+  error "這個腳本需要在終端機回答是否開啟 ngrok。"
   exit 1
 fi
 
@@ -389,75 +391,106 @@ else
   success "容器沒有在跑，略過關機。"
 fi
 
-section "【步驟 3】修改 NGROK_AUTHTOKEN 與 NGROK_DOMAIN"
+section "【步驟 3】是否開啟 ngrok"
 OLD_TOKEN="$(get_env_value NGROK_AUTHTOKEN)"
 OLD_DOMAIN="$(get_env_value NGROK_DOMAIN)"
 OLD_ENABLE="$(normalize_bool "$(get_env_value ENABLE_NGROK)")"
 printf '\n'
+body "目前 ENABLE_NGROK：${OLD_ENABLE:-（未設定）}"
 body "目前 NGROK_AUTHTOKEN：$(mask_token "$OLD_TOKEN")"
 if is_placeholder "$OLD_DOMAIN"; then
   body "目前 NGROK_DOMAIN：尚未設定"
 else
   body "目前 NGROK_DOMAIN：${OLD_DOMAIN}"
 fi
-body "目前 ENABLE_NGROK：${OLD_ENABLE:-（未設定）}"
 printf '\n'
-body "Token 可在 https://dashboard.ngrok.com/get-started/your-authtoken 取得。"
-body "網域只填主機名。寫入時會把 ENABLE_NGROK 設為 true。"
+body "Y：開啟 ngrok，並改寫 NGROK_AUTHTOKEN、NGROK_DOMAIN。"
+body "N：關閉 ngrok。ENABLE_NGROK 設為 false，Token 與網域清空。"
+printf '\n'
+
+ENABLE_NGROK="false"
+while :; do
+  print_prompt "是否開啟 ngrok？" "[Y/N]："
+  answer="$(normalize_bool "$(read_line)")"
+  case "$answer" in
+    y|yes|true|1|是)
+      ENABLE_NGROK="true"
+      break
+      ;;
+    n|no|false|0|否)
+      ENABLE_NGROK="false"
+      break
+      ;;
+    *)
+      warn "請輸入 Y（開啟）或 N（關閉）。"
+      ;;
+  esac
+done
 printf '\n'
 
 NEW_TOKEN=""
-while :; do
-  if is_placeholder "$OLD_TOKEN"; then
-    print_prompt "請輸入 NGROK_AUTHTOKEN" "（必填）："
-  else
-    print_prompt "請輸入 NGROK_AUTHTOKEN" "（直接按 Enter 保留目前的 Token）："
-  fi
-  NEW_TOKEN="$(read_line)"
-  if [[ -z "$NEW_TOKEN" ]]; then
-    if is_placeholder "$OLD_TOKEN"; then
-      warn "Token 為必填，請重新輸入。"
-      continue
-    fi
-    NEW_TOKEN="$OLD_TOKEN"
-  fi
-  if is_placeholder "$NEW_TOKEN"; then
-    warn "不能使用範本值 YOUR_NGROK_AUTHTOKEN。"
-    continue
-  fi
-  if printf '%s' "$NEW_TOKEN" | grep -q '[[:space:]]'; then
-    warn "Token 不能含有空白。"
-    continue
-  fi
-  break
-done
-printf '\n'
-
 NEW_DOMAIN=""
-while :; do
-  if is_placeholder "$OLD_DOMAIN"; then
-    print_prompt "請輸入 NGROK_DOMAIN" "（只填主機名，例如 example.ngrok-free.dev）："
-  else
-    print_prompt "請輸入 NGROK_DOMAIN" "（直接按 Enter 保留 ${OLD_DOMAIN}）："
-  fi
-  NEW_DOMAIN="$(read_line)"
-  if [[ -z "$NEW_DOMAIN" ]]; then
-    if is_placeholder "$OLD_DOMAIN"; then
-      warn "網域為必填，請重新輸入。"
+if [[ "$ENABLE_NGROK" = "true" ]]; then
+  body "Token 可在 https://dashboard.ngrok.com/get-started/your-authtoken 取得。"
+  body "網域只填主機名，不要加 https://。"
+  printf '\n'
+
+  while :; do
+    if is_placeholder "$OLD_TOKEN"; then
+      print_prompt "請輸入 NGROK_AUTHTOKEN" "（必填）："
+    else
+      print_prompt "請輸入 NGROK_AUTHTOKEN" "（直接按 Enter 保留目前的 Token）："
+    fi
+    NEW_TOKEN="$(read_line)"
+    if [[ -z "$NEW_TOKEN" ]]; then
+      if is_placeholder "$OLD_TOKEN"; then
+        warn "Token 為必填，請重新輸入。"
+        continue
+      fi
+      NEW_TOKEN="$OLD_TOKEN"
+    fi
+    if is_placeholder "$NEW_TOKEN"; then
+      warn "不能使用範本值 YOUR_NGROK_AUTHTOKEN。"
       continue
     fi
-    NEW_DOMAIN="$OLD_DOMAIN"
-  fi
-  if validate_ngrok_domain "$NEW_DOMAIN"; then
+    if printf '%s' "$NEW_TOKEN" | grep -q '[[:space:]]'; then
+      warn "Token 不能含有空白。"
+      continue
+    fi
     break
-  fi
-done
-printf '\n'
+  done
+  printf '\n'
 
-body "即將寫入："
-muted "  ENABLE_NGROK=true"
-muted "  NGROK_AUTHTOKEN=$(mask_token "$NEW_TOKEN")"
-muted "  NGROK_DOMAIN=${NEW_DOMAIN}"
+  while :; do
+    if is_placeholder "$OLD_DOMAIN"; then
+      print_prompt "請輸入 NGROK_DOMAIN" "（只填主機名，例如 example.ngrok-free.dev）："
+    else
+      print_prompt "請輸入 NGROK_DOMAIN" "（直接按 Enter 保留 ${OLD_DOMAIN}）："
+    fi
+    NEW_DOMAIN="$(read_line)"
+    if [[ -z "$NEW_DOMAIN" ]]; then
+      if is_placeholder "$OLD_DOMAIN"; then
+        warn "網域為必填，請重新輸入。"
+        continue
+      fi
+      NEW_DOMAIN="$OLD_DOMAIN"
+    fi
+    if validate_ngrok_domain "$NEW_DOMAIN"; then
+      break
+    fi
+  done
+  printf '\n'
+
+  body "即將寫入："
+  muted "  ENABLE_NGROK=true"
+  muted "  NGROK_AUTHTOKEN=$(mask_token "$NEW_TOKEN")"
+  muted "  NGROK_DOMAIN=${NEW_DOMAIN}"
+else
+  body "即將寫入："
+  muted "  ENABLE_NGROK=false"
+  muted "  NGROK_AUTHTOKEN="
+  muted "  NGROK_DOMAIN="
+fi
 printf '\n'
 
 while :; do
@@ -477,13 +510,17 @@ while :; do
   esac
 done
 
-upsert_env ENABLE_NGROK true
+upsert_env ENABLE_NGROK "$ENABLE_NGROK"
 upsert_env NGROK_AUTHTOKEN "$NEW_TOKEN"
 upsert_env NGROK_DOMAIN "$NEW_DOMAIN"
 success "已寫入 .env。"
 
 section "【步驟 4】重新啟動 n8n"
-body "重新建立容器以套用新的網址。映像已在本機時不會重新下載。"
+if [[ "$ENABLE_NGROK" = "true" ]]; then
+  body "重新建立容器以套用新的網址，並啟動 ngrok。映像已在本機時不會重新下載。"
+else
+  body "重新建立容器，且不會啟動 ngrok。映像已在本機時不會重新下載。"
+fi
 printf '\n'
 DONE=1
 "${ROOT}/scripts/start-local-n8n.sh" --no-pull
@@ -493,5 +530,9 @@ success "───────────────────────�
 success "  ngrok 設定已更新，n8n 已重新啟動。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
-muted "請用 https://${NEW_DOMAIN} 開啟編輯器。檢查頁：http://127.0.0.1:4040"
+if [[ "$ENABLE_NGROK" = "true" ]]; then
+  muted "請用 https://${NEW_DOMAIN} 開啟編輯器。檢查頁：http://127.0.0.1:4040"
+else
+  muted "ngrok 已關閉。請用 http://localhost:5678 開啟編輯器。"
+fi
 printf '\n'
