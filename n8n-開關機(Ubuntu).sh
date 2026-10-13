@@ -2,6 +2,15 @@
 # 本機 n8n 開關機入口（Ubuntu）。
 # 已有 .env 且容器在跑 → 關閉；容器沒在跑 → 啟動。尚無 .env 則先建立再啟動。
 # 開關流程與 macOS 版相同；這裡先檢查 Docker 服務與使用權限。
+# 用 sh 執行時，Ubuntu 的 /bin/sh 是 dash，不支援 [[。先改由 bash 重新執行。
+if [ -z "${BASH_VERSION:-}" ]; then
+  if command -v bash >/dev/null 2>&1; then
+    exec bash "$0" "$@"
+  fi
+  echo "找不到 bash。請先安裝：sudo apt-get install -y bash" >&2
+  exit 1
+fi
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
