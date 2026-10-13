@@ -69,8 +69,8 @@ gcloud config get-value project
 之後要開關機，執行同一支腳本即可。也可以用工具入口：
 
 ```bash
-./n8n工具程式(macOS).sh              # Windows：.\n8n工具程式(Win).cmd
-./n8n工具程式(macOS).sh start
+./n8n工具程式(macOS).sh              # Ubuntu：./n8n工具程式(Ubuntu).sh  Windows：.\n8n工具程式(Win).cmd
+./n8n工具程式(macOS).sh start        # Ubuntu：./n8n工具程式(Ubuntu).sh start
 ```
 
 映像檔若已在本機，啟動時只會啟動容器，不會重新下載。task runners 映像若已建立且套件清單沒改，也不會重建。
@@ -102,8 +102,11 @@ gcloud config get-value project
 若只要再匯入憑證：
 
 ```bash
-# macOS / Linux
+# macOS
 ./n8n工具程式(macOS).sh sync-from --credentials-only
+
+# Ubuntu
+./n8n工具程式(Ubuntu).sh sync-from --credentials-only
 
 # Windows
 .\n8n工具程式(Win).cmd sync-from --credentials-only
@@ -114,8 +117,11 @@ gcloud config get-value project
 若要把本機改過的資料回寫到 Supabase（會覆寫雲端）：
 
 ```bash
-# macOS / Linux
+# macOS
 ./n8n工具程式(macOS).sh sync-to
+
+# Ubuntu
+./n8n工具程式(Ubuntu).sh sync-to
 
 # Windows
 .\n8n工具程式(Win).cmd sync-to
@@ -150,13 +156,16 @@ copy .env.example .env
 請依 `.env.example` 的區塊填寫：
 
 - 場景 A / B 要設定本機 `POSTGRES_PASSWORD`（不要填雲端資料庫密碼）。若要使用 ngrok，再填 `NGROK_AUTHTOKEN`、`NGROK_DOMAIN`。
-- 場景 B / C：填好 GCP 三項後，執行 `./n8n工具程式(macOS).sh pull-secrets`（或 `./scripts/pull-secrets.sh`）。加密金鑰與雲端資料庫連線請勿手填。寫入後再開機不必再跑。
+- 場景 B / C：填好 GCP 三項後，執行 `./n8n工具程式(macOS).sh pull-secrets`（Ubuntu：`./n8n工具程式(Ubuntu).sh pull-secrets`，或 `./scripts/pull-secrets.sh`）。加密金鑰與雲端資料庫連線請勿手填。寫入後再開機不必再跑。
 
 設定完成後，可檢查本機是否就緒：
 
 ```bash
-# macOS / Linux
+# macOS
 ./n8n工具程式(macOS).sh check-env
+
+# Ubuntu
+./n8n工具程式(Ubuntu).sh check-env
 
 # Windows
 .\n8n工具程式(Win).cmd check-env
@@ -196,8 +205,8 @@ https://<你的 ngrok 網域>
 ./n8n-開關機(macOS).sh              # Ubuntu：./n8n-開關機(Ubuntu).sh  Windows：.\n8n-開關機(Win).cmd
 
 # 工具入口（選單或指令）
-./n8n工具程式(macOS).sh              # Windows：.\n8n工具程式(Win).cmd
-./n8n工具程式(macOS).sh stop
+./n8n工具程式(macOS).sh              # Ubuntu：./n8n工具程式(Ubuntu).sh  Windows：.\n8n工具程式(Win).cmd
+./n8n工具程式(macOS).sh stop         # Ubuntu 把檔名換成 n8n工具程式(Ubuntu).sh，子指令相同
 ./n8n工具程式(macOS).sh update
 ./n8n工具程式(macOS).sh uninstall --keep-env
 ```
@@ -205,8 +214,11 @@ https://<你的 ngrok 網域>
 `stop` / `update` / `uninstall` 也可直接跑 `scripts/` 底下的腳本。要移除這個專案的容器與映像檔，並清空 `data/`、`exports/` 與 `.env`（可用 `--keep-env` 保留設定檔）：
 
 ```bash
-# macOS / Linux
+# macOS
 ./n8n工具程式(macOS).sh uninstall
+
+# Ubuntu
+./n8n工具程式(Ubuntu).sh uninstall
 
 # Windows
 .\n8n工具程式(Win).cmd uninstall

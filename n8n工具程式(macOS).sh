@@ -4,14 +4,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+LAUNCHER="${N8N_TOOLS_LAUNCHER:-n8n工具程式(macOS).sh}"
 
 usage() {
-  cat <<'EOF'
+  cat <<EOF
 本機 n8n 工具入口。不帶參數時會顯示選單；有指令時轉發到對應腳本。
 
 用法：
-  ./n8n工具程式(macOS).sh
-  ./n8n工具程式(macOS).sh <指令> [腳本參數...]
+  ./${LAUNCHER}
+  ./${LAUNCHER} <指令> [腳本參數...]
 
 日常：
   start                         開關機（在跑就關、沒在跑就開；尚無 .env 則先建立）
@@ -99,8 +100,8 @@ normalize_cmd() {
 script_relpath() {
   case "$1" in
     start)
-      case "$(uname -s)" in
-        Linux) printf 'n8n-開關機(Ubuntu).sh' ;;
+      case "$LAUNCHER" in
+        *Ubuntu*) printf 'n8n-開關機(Ubuntu).sh' ;;
         *) printf 'n8n-開關機(macOS).sh' ;;
       esac
       ;;

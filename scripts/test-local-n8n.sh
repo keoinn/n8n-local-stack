@@ -171,6 +171,7 @@ expect_file 'n8n-開關機(macOS).sh'
 expect_file 'n8n-開關機(Ubuntu).sh'
 expect_file 'n8n-開關機(Win).cmd'
 expect_file 'n8n工具程式(macOS).sh'
+expect_file 'n8n工具程式(Ubuntu).sh'
 expect_file 'n8n工具程式(Win).cmd'
 expect_file compose.yml
 expect_file compose.remote-supabase.yml
@@ -214,6 +215,7 @@ done <<'EOF'
 n8n-開關機(macOS).sh
 n8n-開關機(Ubuntu).sh
 n8n工具程式(macOS).sh
+n8n工具程式(Ubuntu).sh
 scripts/test-local-n8n.sh
 scripts/shutdown-n8n.sh
 scripts/update-n8n.sh
@@ -232,6 +234,11 @@ if "${ROOT}/n8n工具程式(macOS).sh" --help >/dev/null 2>&1; then
   ok "n8n工具程式(macOS).sh --help"
 else
   fail "n8n工具程式(macOS).sh --help"
+fi
+if "${ROOT}/n8n工具程式(Ubuntu).sh" --help >/dev/null 2>&1; then
+  ok "n8n工具程式(Ubuntu).sh --help"
+else
+  fail "n8n工具程式(Ubuntu).sh --help"
 fi
 if "${ROOT}/n8n工具程式(macOS).sh" nope >/dev/null 2>&1; then
   fail "未知指令應失敗，卻成功了"
