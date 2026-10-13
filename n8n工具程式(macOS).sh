@@ -37,7 +37,7 @@ usage() {
 別名：shutdown=stop、env=create-env、check=check-env、
       secrets=pull-secrets、ngrok=check-ngrok
 
-既有的 ./n8n-開關機(macOS).sh、./n8n-開關機(Ubuntu).sh、./scripts/shutdown-n8n.sh 等仍可單獨執行。
+既有的 ./n8n-開關機(macOS).sh、./n8n-開關機(Ubuntu).sh、./n8n-設定ngrok(Ubuntu).sh、./scripts/shutdown-n8n.sh 等仍可單獨執行。
 EOF
 }
 

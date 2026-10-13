@@ -244,6 +244,12 @@ https://<你的 ngrok 網域>
 
 多半是 `.env` 的 `NGROK_AUTHTOKEN` 或 `NGROK_DOMAIN` 還沒填，或仍是範本的 `YOUR_NGROK_*`。請到 [ngrok](https://ngrok.com/) 取得後寫進 `.env`，再執行一次啟動腳本。網域只要主機名，不要加 `https://`。
 
+在 Ubuntu 上可改用互動腳本。它會先檢查 Docker 與 `.env`；n8n 若已在跑，會先關掉 n8n 與 ngrok，改完 `NGROK_AUTHTOKEN`、`NGROK_DOMAIN` 後再重新建立並啟動：
+
+```bash
+./n8n-設定ngrok(Ubuntu).sh
+```
+
 若只在本機編輯、不需要對外 webhook，第一次建立設定時詢問是否啟用 ngrok 請選擇停用。
 
 ### OAuth 重新導向網址仍是 `http://localhost:5678`

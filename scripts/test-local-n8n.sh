@@ -173,6 +173,7 @@ expect_file 'n8n-開關機(Win).cmd'
 expect_file 'n8n工具程式(macOS).sh'
 expect_file 'n8n工具程式(Ubuntu).sh'
 expect_file 'n8n工具程式(Win).cmd'
+expect_file 'n8n-設定ngrok(Ubuntu).sh'
 expect_file compose.yml
 expect_file compose.remote-supabase.yml
 expect_file .env.example
@@ -216,6 +217,7 @@ n8n-開關機(macOS).sh
 n8n-開關機(Ubuntu).sh
 n8n工具程式(macOS).sh
 n8n工具程式(Ubuntu).sh
+n8n-設定ngrok(Ubuntu).sh
 scripts/test-local-n8n.sh
 scripts/shutdown-n8n.sh
 scripts/update-n8n.sh
@@ -249,6 +251,7 @@ fi
 # 只跑 --help，避免真的啟動、卸載或拉密鑰。
 run_help 'n8n-開關機(macOS).sh'
 run_help 'n8n-開關機(Ubuntu).sh'
+run_help 'n8n-設定ngrok(Ubuntu).sh'
 run_help scripts/shutdown-n8n.sh
 run_help scripts/update-n8n.sh
 run_help scripts/uninstall-local-n8n.sh
@@ -291,6 +294,10 @@ expect_contains 'n8n-開關機(macOS).sh' '判定為尚未初始化'
 expect_contains 'n8n-開關機(macOS).sh' 'project_is_running'
 expect_contains 'n8n-開關機(macOS).sh' 'stop_running_stack'
 expect_contains 'n8n-開關機(macOS).sh' '這次改為關閉'
+expect_contains 'n8n-設定ngrok(Ubuntu).sh' 'NGROK_AUTHTOKEN'
+expect_contains 'n8n-設定ngrok(Ubuntu).sh' 'NGROK_DOMAIN'
+expect_contains 'n8n-設定ngrok(Ubuntu).sh' 'com.docker.compose.service='
+expect_contains 'n8n-設定ngrok(Ubuntu).sh' 'start-local-n8n.sh'
 expect_contains scripts/start-n8n.ps1 'Test-ProjectRunning'
 expect_contains scripts/start-n8n.ps1 'Stop-RunningStack'
 expect_contains scripts/start-n8n.ps1 '判定為已初始化'
