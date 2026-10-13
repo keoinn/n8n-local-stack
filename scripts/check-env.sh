@@ -316,14 +316,42 @@ if command -v docker >/dev/null 2>&1; then
     ok "Docker 已安裝"
   fi
 else
-  fail_item "找不到 docker 指令" "請安裝 Docker Desktop，然後重新開啟終端機。"
+  case "$(uname -s)" in
+    Darwin)
+      fail_item "找不到 docker 指令" "請安裝 Docker Desktop，然後重新開啟終端機。"
+      ;;
+    Linux)
+      fail_item "找不到 docker 指令" "Ubuntu：sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 && sudo systemctl enable --now docker && sudo usermod -aG docker \"\$USER\"（登出再登入）。"
+      ;;
+    *)
+      fail_item "找不到 docker 指令" "請安裝 Docker 與 Compose V2，然後重新開啟終端機。"
+      ;;
+  esac
 fi
 
 if command -v docker >/dev/null 2>&1; then
   if docker info >/dev/null 2>&1; then
     ok "Docker daemon 正在執行"
   else
-    fail_item "Docker 已安裝但 daemon 未啟動" "請開啟 Docker Desktop，等到引擎就緒後再重試。"
+    docker_err="$(docker info 2>&1 || true)"
+    case "$docker_err" in
+      *permission\ denied*|*Permission\ denied*)
+        fail_item "Docker 權限不足" "Ubuntu：sudo usermod -aG docker \"\$USER\"，然後登出再登入。"
+        ;;
+      *)
+        case "$(uname -s)" in
+          Darwin)
+            fail_item "Docker 已安裝但 daemon 未啟動" "請開啟 Docker Desktop，等到引擎就緒後再重試。"
+            ;;
+          Linux)
+            fail_item "Docker 已安裝但 daemon 未啟動" "請執行：sudo systemctl enable --now docker"
+            ;;
+          *)
+            fail_item "Docker 已安裝但 daemon 未啟動" "請啟動 Docker 引擎後再重試。"
+            ;;
+        esac
+        ;;
+    esac
   fi
 
   if docker compose version >/dev/null 2>&1; then
@@ -378,7 +406,17 @@ case "$SCENARIO" in
           ;;
       esac
     else
-      fail_item "找不到 gcloud" "macOS 可執行：brew install --cask google-cloud-sdk"
+      case "$(uname -s)" in
+        Darwin)
+          fail_item "找不到 gcloud" "macOS 可執行：brew install --cask google-cloud-sdk"
+          ;;
+        Linux)
+          fail_item "找不到 gcloud" "Ubuntu 可執行：sudo snap install google-cloud-cli --classic"
+          ;;
+        *)
+          fail_item "找不到 gcloud" "請安裝 Google Cloud SDK 後執行 gcloud auth login"
+          ;;
+      esac
       skip_item "gcloud 登入與專案：因找不到 gcloud 而略過"
     fi
     ;;

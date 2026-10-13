@@ -168,6 +168,7 @@ fi
 
 section "檔案位置"
 expect_file 'n8n-開關機(macOS).sh'
+expect_file 'n8n-開關機(Ubuntu).sh'
 expect_file 'n8n-開關機(Win).cmd'
 expect_file 'n8n工具程式(macOS).sh'
 expect_file 'n8n工具程式(Win).cmd'
@@ -211,6 +212,7 @@ while IFS= read -r sh; do
   fi
 done <<'EOF'
 n8n-開關機(macOS).sh
+n8n-開關機(Ubuntu).sh
 n8n工具程式(macOS).sh
 scripts/test-local-n8n.sh
 scripts/shutdown-n8n.sh
@@ -239,6 +241,7 @@ fi
 
 # 只跑 --help，避免真的啟動、卸載或拉密鑰。
 run_help 'n8n-開關機(macOS).sh'
+run_help 'n8n-開關機(Ubuntu).sh'
 run_help scripts/shutdown-n8n.sh
 run_help scripts/update-n8n.sh
 run_help scripts/uninstall-local-n8n.sh

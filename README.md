@@ -27,6 +27,9 @@ winget install -e --id Google.CloudSDK
 # macOS
 brew install --cask google-cloud-sdk
 
+# Ubuntu
+sudo snap install google-cloud-cli --classic
+
 gcloud auth login
 gcloud config set project <你的 GCP 專案 ID>
 ```
@@ -45,14 +48,17 @@ gcloud config get-value project
 請在專案根目錄執行開關機腳本。已有 `.env` 時，它是開關機入口：容器在跑就關閉，沒在跑就啟動。第一次沒有 `.env` 時，會先建立設定再啟動。
 
 ```bash
-# macOS / Linux
+# macOS
 ./n8n-開關機(macOS).sh
+
+# Ubuntu
+./n8n-開關機(Ubuntu).sh
 
 # Windows（請用 .cmd，不要直接執行 .ps1）
 .\n8n-開關機(Win).cmd
 ```
 
-macOS 與 Linux 請執行根目錄的 `.sh`；Windows 請執行根目錄的 `.cmd`。
+請執行根目錄裡對應系統的入口。Ubuntu 版會先確認 Docker 服務與使用權限，開關流程與 macOS 版相同。
 
 | 場景 | 第一次啟動 | 之後再開 |
 | --- | --- | --- |
@@ -187,7 +193,7 @@ https://<你的 ngrok 網域>
 
 ```bash
 # 開關機（有 .env 時：在跑就關、沒在跑就開）
-./n8n-開關機(macOS).sh              # Windows：.\n8n-開關機(Win).cmd
+./n8n-開關機(macOS).sh              # Ubuntu：./n8n-開關機(Ubuntu).sh  Windows：.\n8n-開關機(Win).cmd
 
 # 工具入口（選單或指令）
 ./n8n工具程式(macOS).sh              # Windows：.\n8n工具程式(Win).cmd

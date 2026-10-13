@@ -7,9 +7,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${ROOT}/.env"
 MARKER_FILE="${ROOT}/data/.local-bootstrapped"
+LAUNCHER="${N8N_LAUNCHER_NAME:-n8n-開關機(macOS).sh}"
 
 usage() {
-  cat <<'EOF'
+  cat <<EOF
 本機 n8n 開關機入口：
 
   • 已有 .env、容器正在跑 → 關閉容器（保留 data/、映像與 .env）後結束
@@ -28,7 +29,7 @@ usage() {
 之後再執行同一支腳本即可開關。映像已在本機時，啟動不會重新下載。
 
 用法：
-  ./n8n-開關機(macOS).sh
+  ./${LAUNCHER}
 EOF
 }
 
@@ -596,7 +597,7 @@ if [[ "$NEED_SECRETS" -eq 1 ]]; then
 fi
 printf '\n'
 if ! run_script scripts/check-env.sh; then
-  error "環境檢查未通過。請修正後再執行 ./n8n-開關機(macOS).sh"
+  error "環境檢查未通過。請修正後再執行 ./${LAUNCHER}"
   exit 1
 fi
 
@@ -673,6 +674,6 @@ success "───────────────────────�
 success "  啟動流程完成。"
 success "────────────────────────────────────────────────────────────"
 printf '\n'
-muted "之後要開關機，執行同一支 ./n8n-開關機(macOS).sh 即可。"
+muted "之後要開關機，執行同一支 ./${LAUNCHER} 即可。"
 muted "若要更新程式碼，請執行 ./scripts/update-n8n.sh。"
 printf '\n'

@@ -245,6 +245,8 @@ print_banner() {
   printf '%b\n' "    ${C_CYAN}winget install -e --id Google.CloudSDK${C_RESET}"
   muted "  macOS："
   printf '%b\n' "    ${C_CYAN}brew install --cask google-cloud-sdk${C_RESET}"
+  muted "  Ubuntu："
+  printf '%b\n' "    ${C_CYAN}sudo snap install google-cloud-cli --classic${C_RESET}"
   muted "  安裝完成後執行："
   printf '%b\n' "    ${C_CYAN}gcloud auth login${C_RESET}"
   printf '\n'

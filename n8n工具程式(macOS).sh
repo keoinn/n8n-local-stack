@@ -36,7 +36,7 @@ usage() {
 別名：shutdown=stop、env=create-env、check=check-env、
       secrets=pull-secrets、ngrok=check-ngrok
 
-既有的 ./n8n-開關機(macOS).sh、./scripts/shutdown-n8n.sh 等仍可單獨執行。
+既有的 ./n8n-開關機(macOS).sh、./n8n-開關機(Ubuntu).sh、./scripts/shutdown-n8n.sh 等仍可單獨執行。
 EOF
 }
 
@@ -98,7 +98,12 @@ normalize_cmd() {
 
 script_relpath() {
   case "$1" in
-    start) printf 'n8n-開關機(macOS).sh' ;;
+    start)
+      case "$(uname -s)" in
+        Linux) printf 'n8n-開關機(Ubuntu).sh' ;;
+        *) printf 'n8n-開關機(macOS).sh' ;;
+      esac
+      ;;
     stop) printf 'scripts/shutdown-n8n.sh' ;;
     update) printf 'scripts/update-n8n.sh' ;;
     uninstall) printf 'scripts/uninstall-local-n8n.sh' ;;

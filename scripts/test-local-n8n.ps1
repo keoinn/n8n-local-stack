@@ -173,7 +173,7 @@ else {
 Write-Host ''
 Write-Title '檔案位置'
 @(
-    'n8n-開關機(macOS).sh', 'n8n-開關機(Win).cmd', 'n8n工具程式(macOS).sh', 'n8n工具程式(Win).cmd',
+    'n8n-開關機(macOS).sh', 'n8n-開關機(Ubuntu).sh', 'n8n-開關機(Win).cmd', 'n8n工具程式(macOS).sh', 'n8n工具程式(Win).cmd',
     'compose.yml', 'compose.remote-supabase.yml', '.env.example',
     'scripts\n8n-tools.ps1', 'scripts\start-n8n.ps1',
     'scripts\shutdown-n8n.sh', 'scripts\shutdown-n8n.cmd', 'scripts\shutdown-n8n.ps1',
