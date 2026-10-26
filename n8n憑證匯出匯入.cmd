@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 set "N8N_CRED_SELF=%~f0"
 set "N8N_CRED_ROOT=%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $enc = New-Object System.Text.UTF8Encoding $false; $raw = [System.IO.File]::ReadAllText($env:N8N_CRED_SELF, $enc); $mark = [string][char]13 + [string][char]10 + '#POWERSHELL' + [string][char]13 + [string][char]10; $i = $raw.IndexOf($mark); if ($i -lt 0) { [Console]::Error.WriteLine('POWERSHELL marker missing'); exit 1 }; $code = $raw.Substring($i + $mark.Length); $sb = [scriptblock]::Create($code); & $sb @args }" %*
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$enc = New-Object System.Text.UTF8Encoding $false; $raw = [System.IO.File]::ReadAllText($env:N8N_CRED_SELF, $enc); $mark = [string][char]13 + [string][char]10 + '#POWERSHELL' + [string][char]13 + [string][char]10; $i = $raw.IndexOf($mark); if ($i -lt 0) { [Console]::Error.WriteLine('POWERSHELL marker missing'); exit 1 }; $code = $raw.Substring($i + $mark.Length); $sb = [scriptblock]::Create($code); & $sb %*"
 set "EXITCODE=%ERRORLEVEL%"
 echo.
 echo 按下任意鍵關閉視窗
@@ -116,7 +116,7 @@ function Test-N8nContainerRunning {
     $ErrorActionPreference = 'Continue'
     try {
         $id = @(
-            & docker compose ps -q n8n 2>$null |
+            & docker compose ps --status running -q n8n 2>$null |
                 ForEach-Object { "$_".Trim() } |
                 Where-Object { $_ }
         ) | Select-Object -First 1
@@ -248,8 +248,23 @@ function Export-N8nCredentials {
     Write-OAuthSecretWarnings $files
     Write-Host ''
     Write-Host "已匯出 $($files.Count) 個憑證："
+    $instCount = 0
     foreach ($file in $files) {
-        Write-Host "  $($file.Name)"
+        $extraDesc = ''
+        try {
+            $credObj = [System.IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json
+            if ($credObj.usageScope -eq 'instance') {
+                $instCount++
+                $extraDesc = " [instance 系統設定: $($credObj.name)]"
+            }
+        }
+        catch {}
+        Write-Host "  $($file.Name)$extraDesc"
+    }
+    if ($instCount -gt 0) {
+        Write-Host ''
+        Write-Host "附註：其中有 $instCount 個為 instance 系統設定憑證（例如 AI Assistant 模型）。" -ForegroundColor DarkGray
+        Write-Host '匯出僅供備份參考；匯入時會自動略過以避免 n8n CLI 限制，如需變更請在 n8n 網頁的 Settings -> AI Assistant 設定。' -ForegroundColor DarkGray
     }
     Write-Host ''
     Write-Host "檔案位置：$CredentialDir"
@@ -269,14 +284,20 @@ function Import-N8nCredentials {
         exit 1
     }
     Assert-ComposeReady
-    Write-Host "將從 credential_files 匯入 $($files.Count) 個憑證到本機 n8n："
-    foreach ($file in $files) {
-        Write-Host "  $($file.Name)"
-    }
+
+    $projectFiles = @()
+    $instanceFiles = @()
     $oldEncrypted = @()
+
     foreach ($file in $files) {
+        $isInstance = $false
+        $credName = ''
         try {
             $existing = [System.IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json
+            if ($existing.usageScope -eq 'instance') {
+                $isInstance = $true
+                $credName = [string]$existing.name
+            }
             $dataText = [string]$existing.data
             if ($existing.data -is [string] -and -not $dataText.Trim().StartsWith('{')) {
                 $oldEncrypted += $file.Name
@@ -284,26 +305,62 @@ function Import-N8nCredentials {
         }
         catch {
         }
-    }
-    if ($oldEncrypted.Count -gt 0) {
-        Write-Host '這些檔是舊的加密匯出，OAuth Client Secret 可能是錯的。請先重新匯出再匯入：'
-        foreach ($name in $oldEncrypted) {
-            Write-Host "  $name"
+
+        if ($isInstance) {
+            $instanceFiles += @{
+                FileName = $file.Name
+                Name = $credName
+            }
+        }
+        else {
+            $projectFiles += $file
         }
     }
+
+    if ($instanceFiles.Count -gt 0) {
+        Write-Host ''
+        Write-Host "注意：偵測到 $($instanceFiles.Count) 個 instance 系統設定憑證（例如 AI Assistant 模型）：" -ForegroundColor Yellow
+        foreach ($inst in $instanceFiles) {
+            Write-Host "  - $($inst.FileName) ($($inst.Name))" -ForegroundColor Yellow
+        }
+        Write-Host '說明：n8n CLI 限制不支援匯入已關聯的 instance 憑證（會產生 Unknown instance credential use 錯誤）。' -ForegroundColor Yellow
+        Write-Host '腳本會自動略過這些檔案；AI Assistant 如需設定請至 n8n 網頁介面 Settings -> AI Assistant。' -ForegroundColor Yellow
+        Write-Host ''
+    }
+
+    if ($projectFiles.Count -eq 0) {
+        Write-Host 'credential_files 內無可匯入的專案憑證（僅有 instance 系統憑證），已停止匯入。'
+        return
+    }
+
+    Write-Host "將從 credential_files 匯入 $($projectFiles.Count) 個專案憑證到本機 n8n："
+    foreach ($file in $projectFiles) {
+        Write-Host "  $($file.Name)"
+    }
+
+    if ($oldEncrypted.Count -gt 0) {
+        Write-Host ''
+        Write-Host '這些檔是舊的加密匯出，OAuth Client Secret 可能是錯的。請先重新匯出再匯入：' -ForegroundColor Yellow
+        foreach ($name in $oldEncrypted) {
+            Write-Host "  $name" -ForegroundColor Yellow
+        }
+    }
+
     if (-not $AssumeYes) {
-        $answer = Read-Host '繼續匯入嗎？(y/N)'
+        Write-Host ''
+        $answer = (Read-Host '繼續匯入嗎？(y/N)').Trim()
         if ($answer -notin @('y', 'Y', 'yes', 'YES')) {
             Write-Host '已取消匯入。'
             return
         }
     }
+
     if (-not (Test-Path -LiteralPath $ExportsDir)) {
         New-Item -ItemType Directory -Path $ExportsDir | Out-Null
     }
     Remove-StagingDir $ImportStagingDir
     New-Item -ItemType Directory -Path $ImportStagingDir | Out-Null
-    foreach ($file in $files) {
+    foreach ($file in $projectFiles) {
         Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $ImportStagingDir $file.Name) -Force
     }
     Convert-PlainCredentialData
@@ -348,7 +405,7 @@ if (-not $action) {
     Write-Host '  2) 從 credential_files 匯入憑證'
     Write-Host '  q) 離開'
     Write-Host ''
-    $choice = Read-Host '請選擇'
+    $choice = (Read-Host '請選擇').Trim()
     switch ($choice) {
         '1' { $action = 'export' }
         '2' { $action = 'import' }
