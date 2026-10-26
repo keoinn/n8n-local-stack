@@ -56,6 +56,9 @@ services:
       N8N_NATIVE_PYTHON_RUNNER: ${N8N_NATIVE_PYTHON_RUNNER:-false}
       GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
       TZ: ${GENERIC_TIMEZONE:-Asia/Taipei}
+      # 工作流執行上限（秒）。未設定時 n8n 2.x 最高只允許 3600，全量搜尋會在 1 小時被中止。
+      EXECUTIONS_TIMEOUT: "14400"
+      EXECUTIONS_TIMEOUT_MAX: "14400"
     volumes:
       - ./data/n8n:/home/node/.n8n
       - ./exports:/exports
