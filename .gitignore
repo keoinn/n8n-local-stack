@@ -21,6 +21,9 @@ data/postgres/*
 exports/*
 !exports/.gitkeep
 
+# n8n憑證匯出匯入.cmd 寫出的憑證檔（加密內容，勿提交）
+credential_files/
+
 # 憑證、金鑰、資料庫傾印
 *.pem
 *.key
